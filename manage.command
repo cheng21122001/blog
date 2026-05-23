@@ -81,16 +81,16 @@ start_hugo_bg() {
     for (( i=0; i<20; i++ )); do
         sleep 0.5
         printf "."
-        if curl -sf "http://localhost:1313/papermod/" > /dev/null 2>&1; then
+        if curl -sf "http://localhost:1313/blog/" > /dev/null 2>&1; then
             printf "\n"
-            open "http://localhost:1313/papermod/" 2>/dev/null
-            printf "${GREEN}Your blog is live at: ${BOLD}http://localhost:1313/papermod/${RESET}\n"
+            open "http://localhost:1313/blog/" 2>/dev/null
+            printf "${GREEN}Your blog is live at: ${BOLD}http://localhost:1313/blog/${RESET}\n"
             printf "${DIM}The preview stops automatically when you close this window.${RESET}\n"
             return 0
         fi
     done
 
-    printf "\n${YELLOW}Hugo is taking a while to start. Try opening ${BOLD}http://localhost:1313/papermod/${RESET}${YELLOW} manually.${RESET}\n"
+    printf "\n${YELLOW}Hugo is taking a while to start. Try opening ${BOLD}http://localhost:1313/blog/${RESET}${YELLOW} manually.${RESET}\n"
 }
 
 # ── Publish changes ───────────────────────────────────────────────────────────
