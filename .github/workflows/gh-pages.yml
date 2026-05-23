@@ -3,7 +3,7 @@ name: Deploy Hugo site to GitHub Pages
 on:
   push:
     branches:
-      - source
+      - main
   workflow_dispatch:
 
 permissions:
@@ -29,10 +29,10 @@ jobs:
       TZ: Asia/Singapore
 
     steps:
-      - name: Checkout source branch
+      - name: Checkout main branch
         uses: actions/checkout@v6
         with:
-          ref: source
+          ref: main
           submodules: recursive
           fetch-depth: 0
 
