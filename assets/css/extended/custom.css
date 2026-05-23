@@ -1,5 +1,17 @@
 /* Custom styles added to demo */
 
+.footer {
+    display: none;
+}
+
+.first-entry.home-info {
+    display: none;
+}
+
+.post-content p {
+    text-indent: 2em;
+}
+
 iframe {
     border-radius: var(--radius) !important;
 }

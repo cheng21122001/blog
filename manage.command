@@ -95,14 +95,8 @@ start_hugo_bg() {
 
 # ── Publish changes ───────────────────────────────────────────────────────────
 publish_changes() {
-    printf "\nWrite a short note about what you changed.\n"
-    printf "${DIM}For example: \"added new post about Tokyo\"${RESET}\n"
-    printf "> "
-    IFS= read -r note
-    [[ -z "$note" ]] && note="update blog"
-
     printf "\nPublishing your changes...\n"
-    if git add . && git commit -m "$note" && git push origin main; then
+    if git add . && git commit -m "publish" && git push origin main; then
         printf "\n${GREEN}${BOLD}All done! Your changes have been published.${RESET}\n"
         printf "Vercel will update your live blog in about a minute.\n"
     else
