@@ -41,6 +41,9 @@ languages:
         - name: 标签
           url: tags/
           weight: 4
+        - name: 虚构信件
+          url: games/
+          weight: 5
 
 outputFormats:
   llms:
