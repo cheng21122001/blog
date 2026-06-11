@@ -38,12 +38,9 @@ languages:
         - name: 标签
           url: tags/
           weight: 2
-        - name: 时间
+        - name: 时间线
           url: archives
           weight: 3
-        - name: 虚构信件
-          url: games/
-          weight: 4
 
 outputFormats:
   llms:
