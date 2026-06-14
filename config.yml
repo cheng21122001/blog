@@ -78,22 +78,13 @@ params:
   images: ["images/papermod-cover.png"]
 
   profileMode:
-    enabled: false
-    title: PaperMod
-    imageUrl: "#"
-    imageTitle: my image
-    # imageWidth: 120
-    # imageHeight: 120
-    buttons:
-      - name: Archives
-        url: archives
-      - name: Tags
-        url: tags
-
+    enabled: true
+    title: "普原/小艾"
+    subtitle: "这是自我介绍栏目，还没有想好怎么写:)"
 
   homeInfoParams:
-    Title: "普原/小艾"
-    Content: "这是自我介绍栏目，还没有想好怎么写:)"
+    Title: ""
+    Content: ""
 
   # editPost:
   #   URL: "https://github.com/adityatelange/hugo-PaperMod/tree/exampleSite/content"
