@@ -41,9 +41,6 @@ languages:
         - name: 时间线
           url: archives
           weight: 3
-        - name: 关于我
-          url: about/
-          weight: 4
 
 outputFormats:
   llms:
@@ -95,8 +92,8 @@ params:
 
 
   homeInfoParams:
-    Title: ""
-    Content: ""
+    Title: "普原/小艾"
+    Content: "这是自我介绍栏目，还没有想好怎么写:)"
 
   # editPost:
   #   URL: "https://github.com/adityatelange/hugo-PaperMod/tree/exampleSite/content"
