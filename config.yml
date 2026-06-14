@@ -41,6 +41,9 @@ languages:
         - name: 时间线
           url: archives
           weight: 3
+        - name: 关于我
+          url: about/
+          weight: 4
 
 outputFormats:
   llms:
