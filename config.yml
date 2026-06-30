@@ -81,6 +81,9 @@ params:
     enabled: true
     title: "普原/小艾"
     subtitle: "这是自我介绍栏目，还没有想好怎么写:)"
+    buttons:
+      - name: 订阅
+        url: /subscribe/
 
   homeInfoParams:
     Title: ""
