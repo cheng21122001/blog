@@ -80,7 +80,7 @@ params:
   profileMode:
     enabled: true
     title: "普原/小艾"
-    subtitle: "这是自我介绍栏目，还没有想好怎么写:)<br>点击下方订阅可以获得最新文章信息！"
+    subtitle: "这是自我介绍栏目，还没有想好怎么写:)<br><br>点击下方订阅可以获得最新文章信息！"
     buttons:
       - name: 订阅
         url: https://follow.it/hvnzsz
