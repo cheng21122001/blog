@@ -83,7 +83,7 @@ params:
     subtitle: "这是自我介绍栏目，还没有想好怎么写:)"
     buttons:
       - name: 订阅
-        url: /subscribe/
+        url: https://follow.it/hvnzsz
 
   homeInfoParams:
     Title: ""
