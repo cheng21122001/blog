@@ -19,3 +19,198 @@ iframe {
 .entry-cover img {
     border: 1px solid var(--border);
 }
+
+/* ===================================================
+   极简黑白配色
+   =================================================== */
+
+:root {
+    --radius: 6px;
+    --theme: #ffffff;
+    --entry: #ffffff;
+    --primary: #111111;
+    --secondary: #6f6f6f;
+    --tertiary: #ececec;
+    --content: #1a1a1a;
+    --code-bg: #f6f6f6;
+    --border: #e7e7e7;
+}
+
+:root[data-theme="dark"] {
+    --theme: #0b0b0b;
+    --entry: #121212;
+    --primary: #f2f2f2;
+    --secondary: #9a9a9a;
+    --tertiary: #2a2a2a;
+    --content: #d8d8d8;
+    --code-block-bg: #161616;
+    --code-bg: #1c1c1c;
+    --border: #262626;
+}
+
+/* 列表页背景与首页统一，保持纯净 */
+.list {
+    background: var(--theme);
+}
+
+/* 顶部导航：拉开字距，突出站名 */
+.nav .logo a {
+    font-weight: 700;
+    letter-spacing: 0.25em;
+}
+
+#menu a {
+    letter-spacing: 0.12em;
+    color: var(--secondary);
+    transition: color 0.2s ease;
+}
+
+#menu a:hover,
+#menu .active {
+    color: var(--primary);
+}
+
+/* 文章卡片：去掉底色，改用细线分隔的杂志感 */
+.post-entry {
+    background: transparent;
+    border: 1px solid var(--border);
+    transition: border-color 0.25s ease, transform 0.25s ease;
+}
+
+.post-entry:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.post-entry:active {
+    transform: scale(0.99);
+}
+
+/* ===================================================
+   首页介绍区排版
+   =================================================== */
+
+.profile .profile_inner {
+    gap: 1.4rem;
+    max-width: 34rem;
+    padding: 0 1rem;
+}
+
+.profile .profile_inner h1 {
+    font-size: 2.6rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    text-indent: 0.3em; /* 抵消末字字距，保持视觉居中 */
+}
+
+.profile .profile_inner > span {
+    color: var(--secondary);
+    line-height: 2.1;
+    letter-spacing: 0.05em;
+}
+
+/* 订阅按钮：黑底白字胶囊，深色模式自动反转 */
+.profile .button {
+    background: var(--primary);
+    color: var(--theme);
+    border-radius: 999px;
+    padding: 0.55rem 1.8rem;
+    letter-spacing: 0.2em;
+    text-indent: 0.2em;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.profile .button:hover {
+    opacity: 0.75;
+    transform: translateY(-1px);
+}
+
+/* 介绍区里的链接：细下划线，悬停变实 */
+.profile .profile_inner p {
+    color: var(--secondary);
+    font-size: 0.92rem;
+    line-height: 2;
+}
+
+.profile .profile_inner p a {
+    color: var(--primary);
+    text-decoration: underline;
+    text-decoration-color: var(--tertiary);
+    text-underline-offset: 4px;
+    transition: text-decoration-color 0.2s ease;
+}
+
+.profile .profile_inner p a:hover {
+    text-decoration-color: var(--primary);
+}
+
+/* ===================================================
+   入场动画：内容依次淡入上浮
+   =================================================== */
+
+@keyframes intro-fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.nav {
+    animation: intro-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 首页介绍区：子元素逐个上浮 */
+.profile .profile_inner > * {
+    animation: intro-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.profile .profile_inner > *:nth-child(1) { animation-delay: 0.1s; }
+.profile .profile_inner > *:nth-child(2) { animation-delay: 0.22s; }
+.profile .profile_inner > *:nth-child(3) { animation-delay: 0.34s; }
+.profile .profile_inner > *:nth-child(4) { animation-delay: 0.46s; }
+.profile .profile_inner > *:nth-child(5) { animation-delay: 0.58s; }
+.profile .profile_inner > *:nth-child(6) { animation-delay: 0.7s; }
+
+/* 列表页：标题和文章卡片依次上浮 */
+.main .page-header,
+.main .first-entry {
+    animation: intro-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+}
+
+.main .post-entry {
+    animation: intro-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: 0.16s;
+}
+
+.main .post-entry:nth-of-type(2) { animation-delay: 0.24s; }
+.main .post-entry:nth-of-type(3) { animation-delay: 0.32s; }
+.main .post-entry:nth-of-type(4) { animation-delay: 0.4s; }
+.main .post-entry:nth-of-type(5) { animation-delay: 0.48s; }
+
+/* 文章页：标题先现，正文随后 */
+.post-single .post-header {
+    animation: intro-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+}
+
+.post-single .post-content,
+.post-single .post-footer {
+    animation: intro-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+/* 尊重系统的"减少动态效果"设置 */
+@media (prefers-reduced-motion: reduce) {
+    .nav,
+    .profile .profile_inner > *,
+    .main .page-header,
+    .main .first-entry,
+    .main .post-entry,
+    .post-single .post-header,
+    .post-single .post-content,
+    .post-single .post-footer {
+        animation: none;
+    }
+}
