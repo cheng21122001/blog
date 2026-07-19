@@ -1,0 +1,184 @@
+{{- define "main" }}
+
+{{- /* 收集词句素材：标题始终收入，正文按标点切短句后限量取样 */ -}}
+{{- $titles := slice }}
+{{- $frags := slice }}
+{{- range (where site.RegularPages "Section" "posts") }}
+  {{- $titles = $titles | append (.Title | plainify) }}
+  {{- $text := printf "%s。%s" .Summary (substr .Plain 0 300) }}
+  {{- range (split $text "。") }}
+    {{- range (split . "，") }}
+      {{- range (split . "、") }}
+        {{- range (split . "\n") }}
+          {{- $frag := trim . " 　\t\r" }}
+          {{- if and (ge (len $frag) 6) (le (len $frag) 24) }}
+            {{- $frags = $frags | append $frag }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- /* 标题 + 去重后取前 160 条短句，控制页面体积 */ -}}
+{{- $pool := ($titles | uniq) | append (first 160 ($frags | uniq)) }}
+
+<canvas id="wordRain" aria-hidden="true"></canvas>
+
+<div class="search-hero">
+  <header class="search-head">
+    <h1 class="search-title">搜索</h1>
+    <p class="search-sub">在词雨里搜寻</p>
+  </header>
+
+  <div id="searchbox" class="searchbox">
+    <input id="searchInput"
+      placeholder="{{ .Params.placeholder | default "输入关键词，回车检索…" }}"
+      aria-label="search" type="search" autocomplete="off" maxlength="64">
+    <ul id="searchResults" class="searchResults" aria-label="search results"></ul>
+  </div>
+</div>
+
+<script id="rainPool" type="application/json">
+{{ $pool | jsonify }}
+</script>
+
+<style>
+#wordRain{
+  position:fixed; inset:0; width:100%; height:100%;
+  z-index:0; pointer-events:none;
+}
+.search-hero{
+  position:relative; z-index:1;
+  display:flex; flex-direction:column; align-items:center;
+  min-height:calc(100vh - var(--header-height) - 6rem);
+  padding-top:12vh;
+}
+.search-head{ text-align:center; margin-bottom:1.6rem; }
+.search-title{
+  font-size:2rem; font-weight:600; letter-spacing:.4em; text-indent:.4em; margin:0;
+}
+.search-sub{
+  color:var(--secondary); font-size:.82rem; letter-spacing:.2em; margin:.5rem 0 0;
+}
+
+/* 搜索框浮在词雨之上，实底保证可读 */
+.searchbox{
+  width:min(90vw, 460px);
+  background:var(--theme);
+  border:1px solid var(--primary);
+  border-radius:999px;
+  padding:.2rem;
+  box-shadow:0 8px 30px rgba(0,0,0,.10);
+}
+.searchbox input{
+  width:100%; box-sizing:border-box;
+  border:none; outline:none; background:transparent;
+  color:var(--primary);
+  padding:.7rem 1.3rem; font-size:1rem; letter-spacing:.05em;
+}
+.searchResults{
+  list-style:none; margin:.8rem 0 0; padding:0;
+  width:min(90vw,460px);
+}
+.searchResults li{
+  position:relative;
+  background:var(--theme);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:.7rem 1rem; margin-bottom:.5rem;
+  display:flex; align-items:center; justify-content:space-between;
+  transition:border-color .2s ease, transform .2s ease;
+}
+.searchResults li:hover,
+.searchResults li.focus{
+  border-color:var(--primary);
+  transform:translateY(-1px);
+}
+.searchResults .entry-link{
+  position:absolute; inset:0;
+}
+</style>
+
+<script>
+(function(){
+  var canvas = document.getElementById('wordRain');
+  var poolEl = document.getElementById('rainPool');
+  if(!canvas || !poolEl) return;
+
+  var pool;
+  try{ pool = JSON.parse(poolEl.textContent) || []; }catch(e){ pool = []; }
+  if(pool.length === 0) return;
+
+  var ctx = canvas.getContext('2d');
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var W, H, cols, drops, fontSize;
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function pick(){ return pool[(Math.random()*pool.length)|0]; }
+
+  function themeColors(){
+    var dark = document.documentElement.getAttribute('data-theme') === 'dark'
+      || (document.documentElement.getAttribute('data-theme') !== 'light'
+          && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    return dark
+      ? { faint:'rgba(200,200,200,0.10)', lead:'rgba(230,230,230,0.32)' }
+      : { faint:'rgba(30,30,30,0.06)',    lead:'rgba(20,20,20,0.22)' };
+  }
+  var colors = themeColors();
+
+  function setup(){
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W*dpr; canvas.height = H*dpr;
+    canvas.style.width = W+'px'; canvas.style.height = H+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    fontSize = W < 480 ? 16 : 20;
+    cols = Math.floor(W / (fontSize*1.4));
+    drops = [];
+    for(var i=0;i<cols;i++){
+      drops.push({ y: Math.random()*H, txt: pick(), pos: 0, speed: 0.6 + Math.random()*1.2 });
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.font = fontSize + 'px "PingFang SC","Microsoft YaHei",serif';
+    ctx.textBaseline = 'top';
+    for(var i=0;i<cols;i++){
+      var d = drops[i];
+      var x = i * fontSize * 1.4 + fontSize*0.2;
+      var chars = d.txt.split('');
+      for(var j=0;j<chars.length;j++){
+        var cy = d.y + j*fontSize*1.2;
+        if(cy < -fontSize || cy > H) continue;
+        ctx.fillStyle = (j === chars.length-1) ? colors.lead : colors.faint;
+        ctx.fillText(chars[j], x, cy);
+      }
+      d.y += d.speed;
+      if(d.y - chars.length*fontSize*1.2 > H){
+        d.y = -fontSize*2; d.txt = pick(); d.speed = 0.6 + Math.random()*1.2;
+      }
+    }
+    if(!reduce) requestAnimationFrame(draw);
+  }
+
+  setup();
+  if(reduce){
+    // 静态一屏，不滚动
+    for(var k=0;k<drops.length;k++) drops[k].y = Math.random()*H;
+    draw();
+  } else {
+    draw();
+  }
+
+  var rt;
+  window.addEventListener('resize', function(){
+    clearTimeout(rt); rt = setTimeout(function(){ colors=themeColors(); setup(); }, 200);
+  });
+
+  // 主题切换时更新配色
+  var mo = new MutationObserver(function(){ colors = themeColors(); });
+  mo.observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+})();
+</script>
+
+{{- end }}{{/* end main */}}

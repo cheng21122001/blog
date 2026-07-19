@@ -1,5 +1,5 @@
 ---
 title: "Search"
-placeholder: Search demo site with full text fuzzy search ...
+placeholder: 输入关键词，在词雨里检索…
 layout: "search"
 ---

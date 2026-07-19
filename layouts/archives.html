@@ -1,0 +1,283 @@
+{{- define "main" }}
+
+{{- $pages := where site.RegularPages "Section" "posts" }}
+
+<div class="clock-page">
+
+  <header class="clock-head">
+    <h1 class="clock-title">{{ .Title }}</h1>
+    <p class="clock-hint">拖动转盘旋转 · 点击卡片阅读</p>
+  </header>
+
+  <div class="dial" id="dial" data-count="{{ len $pages }}">
+
+    <!-- 虚线刻度盘 -->
+    <div class="dial-track" aria-hidden="true"></div>
+
+    <!-- 中央实时钟表 -->
+    <div class="clock" aria-hidden="true">
+      <svg viewBox="0 0 100 100" class="clock-face">
+        <circle cx="50" cy="50" r="47" class="clock-rim"/>
+        {{- range seq 0 30 330 }}
+        <line x1="50" y1="7" x2="50" y2="12" class="clock-tick"
+              transform="rotate({{ . }} 50 50)"/>
+        {{- end }}
+        <line id="handHour"   x1="50" y1="50" x2="50" y2="30" class="hand hand-hour"/>
+        <line id="handMinute" x1="50" y1="50" x2="50" y2="20" class="hand hand-minute"/>
+        <line id="handSecond" x1="50" y1="54" x2="50" y2="16" class="hand hand-second"/>
+        <circle cx="50" cy="50" r="2.4" class="clock-cap"/>
+      </svg>
+    </div>
+
+    <!-- 文章档案卡（真实链接，无 JS 时降级为列表） -->
+    <div class="dial-cards" id="dialCards">
+      {{- range $i, $p := $pages }}
+      <a class="card" href="{{ $p.Permalink }}" data-i="{{ $i }}"
+         aria-label="{{ $p.Title | plainify }}">
+        <span class="card-no">{{ printf "%02d" (add $i 1) }}</span>
+        <span class="card-title">{{ $p.Title | plainify }}</span>
+        <span class="card-date">{{ $p.Date.Format "2006.01.02" }}</span>
+      </a>
+      {{- end }}
+    </div>
+
+  </div>
+</div>
+
+<style>
+.clock-page{
+  display:flex; flex-direction:column; align-items:center;
+  padding-top:.5rem;
+}
+.clock-head{ text-align:center; margin-bottom:1.2rem; }
+.clock-title{
+  font-size:1.9rem; font-weight:600; letter-spacing:.35em; text-indent:.35em;
+  margin:0;
+}
+.clock-hint{
+  color:var(--secondary); font-size:.82rem; letter-spacing:.12em;
+  margin:.5rem 0 0;
+}
+
+/* ── 转盘舞台 ── */
+.dial{
+  position:relative;
+  width:min(90vw, 560px);
+  aspect-ratio:1/1;
+  margin:0 auto;
+}
+
+/* 虚线刻度盘 */
+.dial-track{
+  position:absolute; inset:8%;
+  border:1px dashed var(--border);
+  border-radius:50%;
+}
+
+/* 中央钟表 */
+.clock{
+  position:absolute; top:50%; left:50%;
+  width:34%; aspect-ratio:1/1;
+  transform:translate(-50%,-50%);
+  z-index:2;
+}
+.clock-face{ width:100%; height:100%; display:block; }
+.clock-rim{ fill:var(--theme); stroke:var(--primary); stroke-width:1.2; }
+.clock-tick{ stroke:var(--secondary); stroke-width:1; }
+.hand{ stroke:var(--primary); stroke-linecap:round; transform-origin:50px 50px; }
+.hand-hour{ stroke-width:2.4; }
+.hand-minute{ stroke-width:1.6; }
+.hand-second{ stroke:#e23b3b; stroke-width:1; }
+.clock-cap{ fill:var(--primary); }
+
+/* ── 档案卡 ── */
+.dial-cards{ position:absolute; inset:0; }
+
+/* 默认（就绪后）：绕盘的编号小节点 */
+.dial.ready .card{
+  position:absolute; top:50%; left:50%;
+  width:34px; height:34px; box-sizing:border-box;
+  display:flex; align-items:center; justify-content:center;
+  padding:0;
+  background:var(--theme);
+  border:1px solid var(--border);
+  border-radius:50%;
+  cursor:pointer;
+  transform:translate(-50%,-50%);
+  transition:opacity .4s ease, width .4s ease, height .4s ease,
+             border-radius .4s ease, border-color .4s ease;
+  will-change:transform;
+  overflow:hidden;
+}
+.dial.ready .card-no{
+  font-size:.62rem; letter-spacing:.05em; color:var(--secondary);
+  font-variant-numeric:tabular-nums;
+}
+.dial.ready .card-title,
+.dial.ready .card-date{
+  display:none;
+}
+
+/* 顶部焦点卡片展开为完整档案卡 */
+.dial.ready .card.focus{
+  width:150px; height:auto;
+  flex-direction:column; align-items:flex-start; gap:.3rem;
+  padding:.6rem .7rem;
+  border-radius:5px;
+  border-color:var(--primary);
+  box-shadow:0 8px 26px rgba(0,0,0,.12);
+  z-index:5; opacity:1 !important;
+}
+.dial.ready .card.focus .card-no{
+  font-size:.6rem; letter-spacing:.15em;
+}
+.dial.ready .card.focus .card-title{
+  display:block;
+  font-size:.9rem; font-weight:500; color:var(--primary); line-height:1.4;
+}
+.dial.ready .card.focus .card-date{
+  display:block;
+  font-size:.62rem; color:var(--secondary);
+  font-variant-numeric:tabular-nums; letter-spacing:.05em;
+}
+
+/* 无 JS 降级：竖直列表 */
+.dial:not(.ready){
+  aspect-ratio:auto; width:min(92vw,560px);
+  display:block;
+}
+.dial:not(.ready) .dial-track,
+.dial:not(.ready) .dial-pointer,
+.dial:not(.ready) .clock{ display:none; }
+.dial:not(.ready) .dial-cards{ position:static; }
+.dial:not(.ready) .card{
+  display:flex; align-items:baseline; gap:.8rem;
+  padding:.5rem .2rem;
+  border-bottom:1px solid var(--border);
+  margin-bottom:.3rem;
+}
+.dial:not(.ready) .card-title{ font-weight:500; }
+
+@media (prefers-reduced-motion: reduce){
+  .card{ transition:none; }
+  .hand-second{ display:none; }
+}
+</style>
+
+<script>
+(function(){
+  var dial  = document.getElementById('dial');
+  var cards = Array.prototype.slice.call(document.querySelectorAll('#dialCards .card'));
+  var N = cards.length;
+  if(!dial || N === 0) return;
+
+  /* ── 实时钟表 ── */
+  var hH = document.getElementById('handHour');
+  var hM = document.getElementById('handMinute');
+  var hS = document.getElementById('handSecond');
+  function tick(){
+    var d = new Date();
+    var s = d.getSeconds(), m = d.getMinutes(), h = d.getHours() % 12;
+    if(hS) hS.setAttribute('transform','rotate(' + (s*6) + ' 50 50)');
+    if(hM) hM.setAttribute('transform','rotate(' + (m*6 + s*0.1) + ' 50 50)');
+    if(hH) hH.setAttribute('transform','rotate(' + (h*30 + m*0.5) + ' 50 50)');
+  }
+  tick(); setInterval(tick, 1000);
+
+  /* ── 档案盘布局 ── */
+  var step = 360 / N;
+  var rot = 0;          // 当前转盘角度
+  var target = 0;       // 吸附目标角度
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function radius(){ return dial.clientWidth * 0.5 * 0.78; }
+
+  function render(){
+    var R = radius();
+    var focusIdx = ((Math.round(-rot / step) % N) + N) % N;
+    for(var i=0;i<N;i++){
+      var angDeg = ((i*step + rot) % 360 + 360) % 360;   // 0 = 顶部
+      var a = angDeg * Math.PI/180;
+      var x = Math.sin(a) * R;
+      var y = -Math.cos(a) * R;
+      // 离顶部的角距离 0..180
+      var dist = angDeg > 180 ? 360 - angDeg : angDeg;
+      // 顶部清晰，越往底部越淡（底部几乎隐去，避免拥挤）
+      var opacity = Math.max(0.12, 1 - dist/150);
+      var isFocus = (i === focusIdx);
+      cards[i].style.transform =
+        'translate(-50%,-50%) translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+      cards[i].style.opacity = isFocus ? 1 : opacity.toFixed(2);
+      cards[i].classList.toggle('focus', isFocus);
+      cards[i].style.zIndex = isFocus ? 5 : (dist < 90 ? 3 : 1);
+    }
+  }
+
+  /* 平滑趋向 target */
+  var raf = null;
+  function animate(){
+    rot += (target - rot) * 0.18;
+    if(Math.abs(target - rot) < 0.05){ rot = target; render(); raf = null; return; }
+    render();
+    raf = requestAnimationFrame(animate);
+  }
+  function spinTo(t){
+    target = t;
+    if(reduce){ rot = target; render(); return; }
+    if(!raf) raf = requestAnimationFrame(animate);
+  }
+  function snap(){ spinTo(Math.round(target / step) * step); }
+
+  dial.classList.add('ready');
+  render();
+  window.addEventListener('resize', render);
+
+  /* 滚轮旋转 */
+  dial.addEventListener('wheel', function(e){
+    e.preventDefault();
+    target += (e.deltaY > 0 ? -step : step);
+    spinTo(target);
+    clearTimeout(dial._st); dial._st = setTimeout(snap, 160);
+  }, {passive:false});
+
+  /* 指针拖拽旋转 */
+  var dragging=false, lastX=0, lastY=0, moved=0;
+  function angleFromCenter(clientX, clientY){
+    var r = dial.getBoundingClientRect();
+    return Math.atan2(clientY - (r.top+r.height/2), clientX - (r.left+r.width/2)) * 180/Math.PI;
+  }
+  dial.addEventListener('pointerdown', function(e){
+    dragging=true; moved=0; lastA=angleFromCenter(e.clientX,e.clientY);
+    dial.setPointerCapture && dial.setPointerCapture(e.pointerId);
+  });
+  var lastA=0;
+  dial.addEventListener('pointermove', function(e){
+    if(!dragging) return;
+    var a = angleFromCenter(e.clientX,e.clientY);
+    var delta = a - lastA;
+    if(delta > 180) delta -= 360; if(delta < -180) delta += 360;
+    lastA = a; moved += Math.abs(delta);
+    target += delta; rot += delta; render();
+  });
+  function endDrag(){ if(!dragging) return; dragging=false; snap(); }
+  dial.addEventListener('pointerup', endDrag);
+  dial.addEventListener('pointercancel', endDrag);
+
+  /* 点击：非焦点卡片先转到焦点，焦点卡片才跳转 */
+  cards.forEach(function(c, i){
+    c.addEventListener('click', function(e){
+      if(moved > 8){ e.preventDefault(); return; }   // 拖拽误触
+      if(!c.classList.contains('focus')){
+        e.preventDefault();
+        // 计算把第 i 张转到顶部所需角度（就近）
+        var want = -i*step;
+        while(want - target > 180) want -= 360;
+        while(want - target < -180) want += 360;
+        spinTo(want);
+      }
+    });
+  });
+})();
+</script>
+
+{{- end }}{{/* end main */}}
