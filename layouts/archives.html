@@ -2,41 +2,30 @@
 
 {{- $pages := where site.RegularPages "Section" "posts" }}
 
-<div class="clock-page">
+<div class="arc-page">
 
-  <header class="clock-head">
-    <h1 class="clock-title">{{ .Title }}</h1>
-    <p class="clock-hint">拖动转盘旋转 · 点击卡片阅读</p>
+  <header class="arc-head">
+    <h1 class="arc-title">{{ .Title }}</h1>
+    <p class="arc-hint">上下滑动翻阅 · 点击展开的档案阅读</p>
   </header>
 
-  <div class="dial" id="dial" data-count="{{ len $pages }}">
+  <div class="arc-stage" id="arcStage" data-count="{{ len $pages }}">
 
-    <!-- 虚线刻度盘 -->
-    <div class="dial-track" aria-hidden="true"></div>
+    <!-- 大弧刻度线：整个盘面只露出约三分之一 -->
+    <div class="arc-rim" id="arcRim" aria-hidden="true"></div>
 
-    <!-- 中央实时钟表 -->
-    <div class="clock" aria-hidden="true">
-      <svg viewBox="0 0 100 100" class="clock-face">
-        <circle cx="50" cy="50" r="47" class="clock-rim"/>
-        {{- range seq 0 30 330 }}
-        <line x1="50" y1="7" x2="50" y2="12" class="clock-tick"
-              transform="rotate({{ . }} 50 50)"/>
-        {{- end }}
-        <line id="handHour"   x1="50" y1="50" x2="50" y2="30" class="hand hand-hour"/>
-        <line id="handMinute" x1="50" y1="50" x2="50" y2="20" class="hand hand-minute"/>
-        <line id="handSecond" x1="50" y1="54" x2="50" y2="16" class="hand hand-second"/>
-        <circle cx="50" cy="50" r="2.4" class="clock-cap"/>
-      </svg>
-    </div>
-
-    <!-- 文章档案卡（真实链接，无 JS 时降级为列表） -->
-    <div class="dial-cards" id="dialCards">
+    <!-- 档案卡（真实链接，无 JS 时降级为列表） -->
+    <div class="arc-files" id="arcFiles">
       {{- range $i, $p := $pages }}
-      <a class="card" href="{{ $p.Permalink }}" data-i="{{ $i }}"
+      {{- $ex := $p.Plain | plainify | chomp }}
+      <a class="afile" href="{{ $p.Permalink }}" data-i="{{ $i }}"
          aria-label="{{ $p.Title | plainify }}">
-        <span class="card-no">{{ printf "%02d" (add $i 1) }}</span>
-        <span class="card-title">{{ $p.Title | plainify }}</span>
-        <span class="card-date">{{ $p.Date.Format "2006.01.02" }}</span>
+        <span class="afile-no">{{ printf "%02d" (add $i 1) }}</span>
+        <span class="afile-body">
+          <span class="afile-title">{{ $p.Title | plainify }}</span>
+          <span class="afile-date">{{ $p.Date.Format "2006.01.02" }}</span>
+          <span class="afile-excerpt">{{ substr $ex 0 60 }}…</span>
+        </span>
       </a>
       {{- end }}
     </div>
@@ -45,171 +34,154 @@
 </div>
 
 <style>
-.clock-page{
-  display:flex; flex-direction:column; align-items:center;
-  padding-top:.5rem;
+.arc-page{ display:flex; flex-direction:column; align-items:center; }
+.arc-head{ text-align:center; margin-bottom:.4rem; }
+.arc-title{
+  font-size:1.9rem; font-weight:600; letter-spacing:.35em; text-indent:.35em; margin:0;
 }
-.clock-head{ text-align:center; margin-bottom:1.2rem; }
-.clock-title{
-  font-size:1.9rem; font-weight:600; letter-spacing:.35em; text-indent:.35em;
-  margin:0;
-}
-.clock-hint{
-  color:var(--secondary); font-size:.82rem; letter-spacing:.12em;
-  margin:.5rem 0 0;
-}
+.arc-hint{ color:var(--secondary); font-size:.82rem; letter-spacing:.1em; margin:.5rem 0 0; }
 
-/* ── 转盘舞台 ── */
-.dial{
+/* 满宽舞台，露出大弧的一段 */
+.arc-stage{
   position:relative;
-  width:min(90vw, 560px);
-  aspect-ratio:1/1;
-  margin:0 auto;
+  width:100vw; margin-left:calc(50% - 50vw);
+  height:82vh; min-height:520px;
+  overflow:hidden;
+  touch-action:none;
+  cursor:grab;
 }
+.arc-stage:active{ cursor:grabbing; }
 
-/* 虚线刻度盘 */
-.dial-track{
-  position:absolute; inset:8%;
+/* 大弧刻度线：一个巨大的圆，靠 stage 裁切只显示右侧一段弧 */
+.arc-rim{
+  position:absolute;
   border:1px dashed var(--border);
   border-radius:50%;
+  pointer-events:none;
 }
 
-/* 中央钟表 */
-.clock{
-  position:absolute; top:50%; left:50%;
-  width:34%; aspect-ratio:1/1;
-  transform:translate(-50%,-50%);
-  z-index:2;
-}
-.clock-face{ width:100%; height:100%; display:block; }
-.clock-rim{ fill:var(--theme); stroke:var(--primary); stroke-width:1.2; }
-.clock-tick{ stroke:var(--secondary); stroke-width:1; }
-.hand{ stroke:var(--primary); stroke-linecap:round; transform-origin:50px 50px; }
-.hand-hour{ stroke-width:2.4; }
-.hand-minute{ stroke-width:1.6; }
-.hand-second{ stroke:#e23b3b; stroke-width:1; }
-.clock-cap{ fill:var(--primary); }
+/* 档案卡 */
+.arc-files{ position:absolute; inset:0; }
 
-/* ── 档案卡 ── */
-.dial-cards{ position:absolute; inset:0; }
-
-/* 默认（就绪后）：绕盘的编号小节点 */
-.dial.ready .card{
-  position:absolute; top:50%; left:50%;
-  width:34px; height:34px; box-sizing:border-box;
-  display:flex; align-items:center; justify-content:center;
-  padding:0;
-  background:var(--theme);
-  border:1px solid var(--border);
-  border-radius:50%;
-  cursor:pointer;
-  transform:translate(-50%,-50%);
-  transition:opacity .4s ease, width .4s ease, height .4s ease,
-             border-radius .4s ease, border-color .4s ease;
-  will-change:transform;
-  overflow:hidden;
+.afile{
+  position:absolute; top:0; left:0;
+  display:flex; align-items:flex-start; gap:.6rem;
+  width:300px; box-sizing:border-box;
+  padding:.5rem .7rem;
+  color:var(--primary);
+  transform-origin:left center;
+  transition:opacity .35s ease;
+  will-change:transform, opacity;
 }
-.dial.ready .card-no{
-  font-size:.62rem; letter-spacing:.05em; color:var(--secondary);
-  font-variant-numeric:tabular-nums;
+.afile-no{
+  font-size:.66rem; letter-spacing:.1em; color:var(--secondary);
+  font-variant-numeric:tabular-nums; padding-top:.15rem; flex:none;
 }
-.dial.ready .card-title,
-.dial.ready .card-date{
-  display:none;
+.afile-body{ display:flex; flex-direction:column; gap:.25rem; min-width:0; }
+.afile-title{
+  font-size:1rem; font-weight:500; line-height:1.4;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
-
-/* 顶部焦点卡片展开为完整档案卡 */
-.dial.ready .card.focus{
-  width:150px; height:auto;
-  flex-direction:column; align-items:flex-start; gap:.3rem;
-  padding:.6rem .7rem;
-  border-radius:5px;
-  border-color:var(--primary);
-  box-shadow:0 8px 26px rgba(0,0,0,.12);
-  z-index:5; opacity:1 !important;
-}
-.dial.ready .card.focus .card-no{
-  font-size:.6rem; letter-spacing:.15em;
-}
-.dial.ready .card.focus .card-title{
-  display:block;
-  font-size:.9rem; font-weight:500; color:var(--primary); line-height:1.4;
-}
-.dial.ready .card.focus .card-date{
-  display:block;
-  font-size:.62rem; color:var(--secondary);
+.afile-date{
+  font-size:.66rem; color:var(--secondary);
   font-variant-numeric:tabular-nums; letter-spacing:.05em;
 }
+.afile-excerpt{
+  font-size:.8rem; color:var(--secondary); line-height:1.6;
+  max-height:0; overflow:hidden; opacity:0;
+  transition:max-height .4s ease, opacity .4s ease, margin .4s ease;
+}
 
-/* 无 JS 降级：竖直列表 */
-.dial:not(.ready){
-  aspect-ratio:auto; width:min(92vw,560px);
+/* 焦点档案：放大、显示边框与正文摘要 */
+.arc-stage.ready .afile.focus{
+  padding:.8rem 1rem;
+  border:1px solid var(--primary);
+  border-radius:6px;
+  background:var(--theme);
+  box-shadow:0 10px 30px rgba(0,0,0,.12);
+}
+.arc-stage.ready .afile.focus .afile-title{ white-space:normal; }
+.arc-stage.ready .afile.focus .afile-excerpt{
+  max-height:6rem; opacity:1; margin-top:.15rem;
+}
+
+/* 无 JS 降级：普通竖直列表 */
+.arc-stage:not(.ready){
+  width:min(92vw,640px); margin-left:auto; height:auto; overflow:visible;
   display:block;
 }
-.dial:not(.ready) .dial-track,
-.dial:not(.ready) .dial-pointer,
-.dial:not(.ready) .clock{ display:none; }
-.dial:not(.ready) .dial-cards{ position:static; }
-.dial:not(.ready) .card{
-  display:flex; align-items:baseline; gap:.8rem;
-  padding:.5rem .2rem;
-  border-bottom:1px solid var(--border);
-  margin-bottom:.3rem;
+.arc-stage:not(.ready) .arc-rim{ display:none; }
+.arc-stage:not(.ready) .arc-files{ position:static; }
+.arc-stage:not(.ready) .afile{
+  position:static; width:100%; transform:none;
+  border-bottom:1px solid var(--border); border-radius:0;
 }
-.dial:not(.ready) .card-title{ font-weight:500; }
+.arc-stage:not(.ready) .afile-excerpt{ display:none; }
 
-@media (prefers-reduced-motion: reduce){
-  .card{ transition:none; }
-  .hand-second{ display:none; }
+@media (max-width:480px){
+  .afile{ width:250px; }
+  .afile-title{ font-size:.92rem; }
 }
 </style>
 
 <script>
 (function(){
-  var dial  = document.getElementById('dial');
-  var cards = Array.prototype.slice.call(document.querySelectorAll('#dialCards .card'));
-  var N = cards.length;
-  if(!dial || N === 0) return;
+  var stage = document.getElementById('arcStage');
+  var rim   = document.getElementById('arcRim');
+  var files = Array.prototype.slice.call(document.querySelectorAll('#arcFiles .afile'));
+  var N = files.length;
+  if(!stage || N === 0) return;
 
-  /* ── 实时钟表 ── */
-  var hH = document.getElementById('handHour');
-  var hM = document.getElementById('handMinute');
-  var hS = document.getElementById('handSecond');
-  function tick(){
-    var d = new Date();
-    var s = d.getSeconds(), m = d.getMinutes(), h = d.getHours() % 12;
-    if(hS) hS.setAttribute('transform','rotate(' + (s*6) + ' 50 50)');
-    if(hM) hM.setAttribute('transform','rotate(' + (m*6 + s*0.1) + ' 50 50)');
-    if(hH) hH.setAttribute('transform','rotate(' + (h*30 + m*0.5) + ' 50 50)');
-  }
-  tick(); setInterval(tick, 1000);
-
-  /* ── 档案盘布局 ── */
-  var step = 360 / N;
-  var rot = 0;          // 当前转盘角度
-  var target = 0;       // 吸附目标角度
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var DEG = Math.PI/180;
 
-  function radius(){ return dial.clientWidth * 0.5 * 0.78; }
+  /* 可调参数 */
+  var STEP = 20;      // 相邻档案的角度间隔
+  var WIN  = 54;      // 可见半角（|a|>WIN 隐藏），2*WIN≈108°≈盘面的三分之一
+  var RFAC = 0.62;    // 半径 = 舞台高 * RFAC
+  var FOCX = 0.40;    // 焦点横向位置（占舞台宽比例）
+
+  var rot = 0;                 // 旋转角：档案 i 在焦点时 rot = -i*STEP（默认聚焦最新一篇）
+  var minRot = -(N-1)*STEP;    // 滚到最后一篇
+  var target = 0;
+  var R, cx, cy;
+
+  function layout(){
+    var W = stage.clientWidth, H = stage.clientHeight;
+    R  = Math.max(H*RFAC, 360);
+    cx = W*FOCX - R;           // 圆心移到屏幕左外侧
+    cy = H*0.5;
+    // 摆放大弧刻度线（直径 2R 的圆，圆心在 cx,cy）
+    rim.style.width  = (2*R)+'px';
+    rim.style.height = (2*R)+'px';
+    rim.style.left   = cx+'px';
+    rim.style.top    = (cy-R)+'px';
+  }
 
   function render(){
-    var R = radius();
-    var focusIdx = ((Math.round(-rot / step) % N) + N) % N;
+    var focusIdx = Math.round(-rot/STEP);
+    focusIdx = Math.max(0, Math.min(N-1, focusIdx));
     for(var i=0;i<N;i++){
-      var angDeg = ((i*step + rot) % 360 + 360) % 360;   // 0 = 顶部
-      var a = angDeg * Math.PI/180;
-      var x = Math.sin(a) * R;
-      var y = -Math.cos(a) * R;
-      // 离顶部的角距离 0..180
-      var dist = angDeg > 180 ? 360 - angDeg : angDeg;
-      // 顶部清晰，越往底部越淡（底部几乎隐去，避免拥挤）
-      var opacity = Math.max(0.12, 1 - dist/150);
-      var isFocus = (i === focusIdx);
-      cards[i].style.transform =
-        'translate(-50%,-50%) translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
-      cards[i].style.opacity = isFocus ? 1 : opacity.toFixed(2);
-      cards[i].classList.toggle('focus', isFocus);
-      cards[i].style.zIndex = isFocus ? 5 : (dist < 90 ? 3 : 1);
+      var a = i*STEP + rot;           // 角度，0 = 焦点（正右方）
+      var ad = Math.abs(a);
+      var el = files[i];
+      if(ad > WIN + STEP){
+        el.style.display = 'none';
+        el.classList.remove('focus');
+        continue;
+      }
+      el.style.display = '';
+      var ar = a*DEG;
+      var x = cx + R*Math.cos(ar);
+      var y = cy + R*Math.sin(ar);
+      var scale = Math.max(0.55, 1 - ad/(WIN*1.7));
+      var opacity = Math.max(0.12, 1 - ad/WIN);
+      var isFocus = (i === focusIdx) && (ad < STEP*0.6);
+      el.style.transform =
+        'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) translateY(-50%) scale(' + scale.toFixed(3) + ')';
+      el.style.opacity = isFocus ? 1 : opacity.toFixed(2);
+      el.style.zIndex = isFocus ? 10 : Math.round(100 - ad);
+      el.classList.toggle('focus', isFocus);
     }
   }
 
@@ -218,62 +190,52 @@
   function animate(){
     rot += (target - rot) * 0.18;
     if(Math.abs(target - rot) < 0.05){ rot = target; render(); raf = null; return; }
-    render();
-    raf = requestAnimationFrame(animate);
+    render(); raf = requestAnimationFrame(animate);
   }
   function spinTo(t){
-    target = t;
+    target = Math.max(minRot, Math.min(0, t));
     if(reduce){ rot = target; render(); return; }
     if(!raf) raf = requestAnimationFrame(animate);
   }
-  function snap(){ spinTo(Math.round(target / step) * step); }
+  function snap(){ spinTo(Math.round(target/STEP)*STEP); }
 
-  dial.classList.add('ready');
-  render();
-  window.addEventListener('resize', render);
+  layout(); stage.classList.add('ready'); render();
+  window.addEventListener('resize', function(){ layout(); render(); });
 
-  /* 滚轮旋转 */
-  dial.addEventListener('wheel', function(e){
+  /* 滚轮 / 触控板 */
+  stage.addEventListener('wheel', function(e){
     e.preventDefault();
-    target += (e.deltaY > 0 ? -step : step);
+    target = Math.max(minRot, Math.min(0, target - (e.deltaY>0?STEP:-STEP)));
     spinTo(target);
-    clearTimeout(dial._st); dial._st = setTimeout(snap, 160);
+    clearTimeout(stage._st); stage._st = setTimeout(snap, 160);
   }, {passive:false});
 
-  /* 指针拖拽旋转 */
-  var dragging=false, lastX=0, lastY=0, moved=0;
-  function angleFromCenter(clientX, clientY){
-    var r = dial.getBoundingClientRect();
-    return Math.atan2(clientY - (r.top+r.height/2), clientX - (r.left+r.width/2)) * 180/Math.PI;
-  }
-  dial.addEventListener('pointerdown', function(e){
-    dragging=true; moved=0; lastA=angleFromCenter(e.clientX,e.clientY);
-    dial.setPointerCapture && dial.setPointerCapture(e.pointerId);
+  /* 拖拽（上下滑动） */
+  var dragging=false, lastY=0, moved=0;
+  stage.addEventListener('pointerdown', function(e){
+    dragging=true; moved=0; lastY=e.clientY;
+    stage.setPointerCapture && stage.setPointerCapture(e.pointerId);
   });
-  var lastA=0;
-  dial.addEventListener('pointermove', function(e){
+  stage.addEventListener('pointermove', function(e){
     if(!dragging) return;
-    var a = angleFromCenter(e.clientX,e.clientY);
-    var delta = a - lastA;
-    if(delta > 180) delta -= 360; if(delta < -180) delta += 360;
-    lastA = a; moved += Math.abs(delta);
-    target += delta; rot += delta; render();
+    var dy = e.clientY - lastY; lastY = e.clientY; moved += Math.abs(dy);
+    // 向上拖 => 看更旧的（rot 减小）
+    var d = dy * 0.16;
+    target = Math.max(minRot, Math.min(0, target + d));
+    rot = Math.max(minRot, Math.min(0, rot + d));
+    render();
   });
   function endDrag(){ if(!dragging) return; dragging=false; snap(); }
-  dial.addEventListener('pointerup', endDrag);
-  dial.addEventListener('pointercancel', endDrag);
+  stage.addEventListener('pointerup', endDrag);
+  stage.addEventListener('pointercancel', endDrag);
 
-  /* 点击：非焦点卡片先转到焦点，焦点卡片才跳转 */
-  cards.forEach(function(c, i){
-    c.addEventListener('click', function(e){
-      if(moved > 8){ e.preventDefault(); return; }   // 拖拽误触
-      if(!c.classList.contains('focus')){
+  /* 点击：非焦点先滑到焦点，焦点才跳转 */
+  files.forEach(function(el, i){
+    el.addEventListener('click', function(e){
+      if(moved > 8){ e.preventDefault(); return; }
+      if(!el.classList.contains('focus')){
         e.preventDefault();
-        // 计算把第 i 张转到顶部所需角度（就近）
-        var want = -i*step;
-        while(want - target > 180) want -= 360;
-        while(want - target < -180) want += 360;
-        spinTo(want);
+        spinTo(-i*STEP);
       }
     });
   });
