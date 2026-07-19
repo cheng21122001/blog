@@ -1,6 +1,7 @@
 {{- define "main" }}
 
-{{- $pages := where site.RegularPages "Section" "posts" }}
+{{- /* 按时间正序：最早的文章编号 01 */ -}}
+{{- $pages := (where site.RegularPages "Section" "posts").ByDate }}
 
 <div class="clock-page">
 
@@ -150,7 +151,8 @@
 
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var step = 360 / N;
-  var rot = 0, target = 0;
+  /* 初始聚焦最新一篇（编号最大） */
+  var rot = -(N-1)*step, target = rot;
 
   function radius(){ return dial.clientWidth * 0.5 * 0.80; }
 
