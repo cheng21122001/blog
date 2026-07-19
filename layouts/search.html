@@ -1,33 +1,28 @@
 {{- define "main" }}
 
-{{- /* 收集词句素材：标题始终收入，正文按标点切短句后限量取样 */ -}}
+{{- /* 收集词句素材：标题 + 正文按“句末标点”断出的完整句子 */ -}}
 {{- $titles := slice }}
 {{- $frags := slice }}
 {{- range (where site.RegularPages "Section" "posts") }}
   {{- $titles = $titles | append (.Title | plainify) }}
-  {{- $text := printf "%s。%s" .Summary (substr .Plain 0 300) }}
+  {{- $text := printf "%s。%s" .Summary (substr .Plain 0 500) }}
+  {{- /* 先把各类句末标点统一成“。”，只在此处断句，保留句内逗号顿号 */ -}}
+  {{- $text = replaceRE "[！？；!?;\n]+" "。" $text }}
   {{- range (split $text "。") }}
-    {{- range (split . "，") }}
-      {{- range (split . "、") }}
-        {{- range (split . "\n") }}
-          {{- $frag := trim . " 　\t\r" }}
-          {{- if and (ge (len $frag) 6) (le (len $frag) 24) }}
-            {{- $frags = $frags | append $frag }}
-          {{- end }}
-        {{- end }}
-      {{- end }}
+    {{- $frag := trim . " 　\t\r，、" }}
+    {{- if and (ge (len $frag) 12) (le (len $frag) 60) }}
+      {{- $frags = $frags | append $frag }}
     {{- end }}
   {{- end }}
 {{- end }}
-{{- /* 标题 + 去重后取前 160 条短句，控制页面体积 */ -}}
-{{- $pool := ($titles | uniq) | append (first 160 ($frags | uniq)) }}
+{{- /* 标题 + 去重后取前 240 条完整句子，控制页面体积 */ -}}
+{{- $pool := ($titles | uniq) | append (first 240 ($frags | uniq)) }}
 
 <canvas id="wordRain" aria-hidden="true"></canvas>
 
 <div class="search-hero">
   <header class="search-head">
-    <h1 class="search-title">搜索</h1>
-    <p class="search-sub">在词雨里搜寻</p>
+    <h1 class="search-title">Search</h1>
   </header>
 
   <div id="searchbox" class="searchbox">
@@ -38,8 +33,8 @@
   </div>
 </div>
 
-<script id="rainPool" type="application/json">
-{{ $pool | jsonify }}
+<script>
+window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
 </script>
 
 <style>
@@ -102,16 +97,14 @@
 <script>
 (function(){
   var canvas = document.getElementById('wordRain');
-  var poolEl = document.getElementById('rainPool');
-  if(!canvas || !poolEl) return;
+  if(!canvas) return;
 
-  var pool;
-  try{ pool = JSON.parse(poolEl.textContent) || []; }catch(e){ pool = []; }
+  var pool = (window.__RAIN_POOL__ || []).filter(function(s){ return s && s.length; });
   if(pool.length === 0) return;
 
   var ctx = canvas.getContext('2d');
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
-  var W, H, cols, drops, fontSize;
+  var W, H, cols, drops, fontSize, colGap, rowGap;
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function pick(){ return pool[(Math.random()*pool.length)|0]; }
@@ -131,11 +124,13 @@
     canvas.width = W*dpr; canvas.height = H*dpr;
     canvas.style.width = W+'px'; canvas.style.height = H+'px';
     ctx.setTransform(dpr,0,0,dpr,0,0);
-    fontSize = W < 480 ? 16 : 20;
-    cols = Math.floor(W / (fontSize*1.4));
+    fontSize = W < 480 ? 11 : 13;
+    colGap = fontSize * 1.15;                 // 列间距（更密）
+    rowGap = fontSize * 1.12;                 // 字间距
+    cols = Math.floor(W / colGap);
     drops = [];
     for(var i=0;i<cols;i++){
-      drops.push({ y: Math.random()*H, txt: pick(), pos: 0, speed: 0.6 + Math.random()*1.2 });
+      drops.push({ y: (Math.random()*2-1)*H, txt: pick(), speed: 0.4 + Math.random()*0.9 });
     }
   }
 
@@ -145,17 +140,20 @@
     ctx.textBaseline = 'top';
     for(var i=0;i<cols;i++){
       var d = drops[i];
-      var x = i * fontSize * 1.4 + fontSize*0.2;
+      var x = i * colGap + colGap*0.15;
       var chars = d.txt.split('');
-      for(var j=0;j<chars.length;j++){
-        var cy = d.y + j*fontSize*1.2;
+      var len = chars.length;
+      for(var j=0;j<len;j++){
+        var cy = d.y + j*rowGap;
         if(cy < -fontSize || cy > H) continue;
-        ctx.fillStyle = (j === chars.length-1) ? colors.lead : colors.faint;
+        // 句尾字略深，整句由深到浅，读起来像一句话在坠落
+        ctx.fillStyle = (j >= len-2) ? colors.lead : colors.faint;
         ctx.fillText(chars[j], x, cy);
       }
       d.y += d.speed;
-      if(d.y - chars.length*fontSize*1.2 > H){
-        d.y = -fontSize*2; d.txt = pick(); d.speed = 0.6 + Math.random()*1.2;
+      if(d.y - len*rowGap > H){
+        d.y = -len*rowGap - Math.random()*H*0.5;   // 整句从顶部之上重新落下
+        d.txt = pick(); d.speed = 0.4 + Math.random()*0.9;
       }
     }
     if(!reduce) requestAnimationFrame(draw);
