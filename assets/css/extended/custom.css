@@ -67,6 +67,43 @@ h1, h2, h3, h4, h5, h6,
     font-family: var(--font-main);
 }
 
+/* 页面标题统一：标签页/标签词条页与时间线、搜索页保持同一套排版 */
+.page-header {
+    text-align: center;
+}
+
+.page-header h1 {
+    font-size: 1.9rem;
+    font-weight: 600;
+    letter-spacing: .35em;
+    text-indent: .35em; /* 抵消末字字距，保持视觉居中 */
+}
+
+.page-header .post-description {
+    color: var(--secondary);
+    font-size: .82rem;
+    letter-spacing: .12em;
+}
+
+/* 标签胶囊：居中并改为细描边，呼应全站极简黑白 */
+.terms-tags {
+    justify-content: center;
+}
+
+.terms-tags a {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--secondary);
+    letter-spacing: .08em;
+    transition: border-color .2s ease, color .2s ease;
+}
+
+.terms-tags a:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
 /* 列表页背景与首页统一，保持纯净 */
 .list {
     background: var(--theme);
