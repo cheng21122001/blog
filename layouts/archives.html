@@ -7,13 +7,21 @@
 
   <header class="clock-head">
     <h1 class="clock-title">{{ .Title }}</h1>
-    <p class="clock-hint">拖动转盘旋转 · 点击档案阅读</p>
+    <p class="clock-hint">拖动转盘旋转 · 点击中间卡片阅读</p>
   </header>
 
   <div class="dial" id="dial" data-count="{{ len $pages }}">
 
     <!-- 虚线刻度盘 -->
     <div class="dial-track" aria-hidden="true"></div>
+
+    <!-- 中央详情面板：显示当前转到顶部的那篇 -->
+    <a class="dial-detail" id="dialDetail" href="#">
+      <span class="detail-no"></span>
+      <span class="detail-title"></span>
+      <span class="detail-date"></span>
+      <span class="detail-excerpt"></span>
+    </a>
 
     <!-- 文章档案卡（真实链接，无 JS 时降级为列表） -->
     <div class="dial-cards" id="dialCards">
@@ -22,13 +30,13 @@
       <a class="card" href="{{ $p.Permalink }}" data-i="{{ $i }}"
          aria-label="{{ $p.Title | plainify }}">
         <span class="card-no">{{ printf "%02d" (add $i 1) }}</span>
-        {{- $chars := split (substr ($p.Title | plainify) 0 10) "" }}
+        {{- $chars := split (substr ($p.Title | plainify) 0 8) "" }}
         <span class="card-label" aria-hidden="true" style="--cn:{{ len $chars }}">
           {{- range $ci, $ch := $chars }}<i style="--ci:{{ $ci }}">{{ $ch }}</i>{{ end -}}
         </span>
         <span class="card-title">{{ $p.Title | plainify }}</span>
         <span class="card-date">{{ $p.Date.Format "2006.01.02" }}</span>
-        <span class="card-excerpt">{{ substr $ex 0 48 }}…</span>
+        <span class="card-excerpt">{{ substr $ex 0 36 }}…</span>
       </a>
       {{- end }}
     </div>
@@ -54,9 +62,10 @@
 /* ── 转盘舞台 ── */
 .dial{
   position:relative;
-  width:min(90vw, 560px);
+  /* 用容器宽度而非 90vw：main 有左右内边距，用 vw 会溢出裁掉节点 */
+  width:min(100%, 560px);
   aspect-ratio:1/1;
-  margin:4.5rem auto 2rem;
+  margin:1.5rem auto 2rem;
   touch-action:none;
   -webkit-user-select:none; user-select:none;
   cursor:grab;
@@ -71,10 +80,49 @@
   pointer-events:none;
 }
 
+/* ── 中央详情面板 ── */
+.dial-detail{
+  position:absolute; top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  width:160px; box-sizing:border-box;
+  display:flex; flex-direction:column; gap:.3rem;
+  padding:.7rem .8rem;
+  background:var(--theme);
+  border:1px solid var(--primary);
+  border-radius:6px;
+  box-shadow:0 8px 26px rgba(0,0,0,.10);
+  text-align:left; z-index:8;
+  transition:box-shadow .2s ease, transform .2s ease;
+}
+.dial-detail:hover{
+  transform:translate(-50%,-50%) translateY(-2px);
+  box-shadow:0 12px 30px rgba(0,0,0,.16);
+}
+.detail-no{
+  font-size:.6rem; letter-spacing:.15em; color:var(--secondary);
+  font-variant-numeric:tabular-nums;
+}
+.detail-title{
+  font-size:.92rem; font-weight:500; color:var(--primary); line-height:1.45;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.detail-date{
+  font-size:.62rem; color:var(--secondary);
+  font-variant-numeric:tabular-nums; letter-spacing:.05em;
+}
+.detail-excerpt{
+  font-size:.72rem; color:var(--secondary); line-height:1.6;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+/* 无 JS 时中央面板无内容，直接隐藏 */
+.dial:not(.ready) .dial-detail{ display:none; }
+
 /* ── 档案卡 ── */
 .dial-cards{ position:absolute; inset:0; }
 
-/* 就绪后：绕盘的编号小节点 */
+/* 就绪后：绕盘的编号小节点（不再展开，详情统一在中央显示） */
 .dial.ready .card{
   position:absolute; top:50%; left:50%;
   width:34px; height:34px; box-sizing:border-box;
@@ -85,9 +133,23 @@
   border-radius:50%;
   cursor:pointer;
   transform:translate(-50%,-50%);
-  transition:opacity .4s ease;
-  will-change:transform;
+  transition:opacity .4s ease, border-color .3s ease;
 }
+.dial.ready .card-no{
+  font-size:.62rem; letter-spacing:.05em; color:var(--secondary);
+  font-variant-numeric:tabular-nums;
+}
+.dial.ready .card-title,
+.dial.ready .card-date,
+.dial.ready .card-excerpt{ display:none; }
+
+/* 当前选中的节点：描边加深 */
+.dial.ready .card.focus{
+  border-color:var(--primary);
+  z-index:5;
+}
+.dial.ready .card.focus .card-no{ color:var(--primary); }
+.dial.ready .card.focus .card-label{ color:var(--primary); }
 
 /* 圆环内侧的放射状标题：贴近圆环的字最大，越往圆心越小 */
 .dial.ready .card-label{
@@ -98,58 +160,28 @@
   color:var(--secondary);
   white-space:nowrap;
   pointer-events:none;
+  transition:color .3s ease;
 }
 .dial.ready .card-label i{
   font-style:normal;
   /* 第 0 字贴环最大，逐字向圆心缩小 */
-  font-size:calc(11px - var(--ci) * 0.62px);
+  font-size:calc(var(--lb, 11px) - var(--ci) * var(--lbstep, 0.62px));
 }
 /* 右半圈翻转后文字由圆心读向圆环，故末字贴环最大 */
 .dial.ready .card-label.flip i{
-  font-size:calc(11px - (var(--cn) - 1 - var(--ci)) * 0.62px);
+  font-size:calc(var(--lb, 11px) - (var(--cn) - 1 - var(--ci)) * var(--lbstep, 0.62px));
 }
-.dial.ready .card-no{
-  font-size:.62rem; letter-spacing:.05em; color:var(--secondary);
-  font-variant-numeric:tabular-nums;
-}
-.dial.ready .card-title,
-.dial.ready .card-date,
-.dial.ready .card-excerpt{ display:none; }
 
-/* 焦点卡展开时隐藏放射标题，避免与完整卡片重叠 */
-.dial.ready .card.focus .card-label{ display:none; }
-
-/* 顶部焦点：展开为完整档案卡 */
-.dial.ready .card.focus{
-  width:170px; height:auto;
-  flex-direction:column; align-items:flex-start; gap:.3rem;
-  padding:.7rem .8rem;
-  border-radius:6px;
-  border-color:var(--primary);
-  background:var(--theme);
-  box-shadow:0 8px 26px rgba(0,0,0,.12);
-  z-index:9; opacity:1 !important;
-}
-.dial.ready .card.focus .card-no{
-  font-size:.6rem; letter-spacing:.15em;
-}
-.dial.ready .card.focus .card-title{
-  display:block;
-  font-size:.92rem; font-weight:500; color:var(--primary); line-height:1.45;
-}
-.dial.ready .card.focus .card-date{
-  display:block;
-  font-size:.62rem; color:var(--secondary);
-  font-variant-numeric:tabular-nums; letter-spacing:.05em;
-}
-.dial.ready .card.focus .card-excerpt{
-  display:block;
-  font-size:.76rem; color:var(--secondary); line-height:1.6;
+/* 窄屏：环太小，放射标题会挤成一团且不可读，改为只留编号 */
+@media (max-width:640px){
+  .dial.ready .card-label{ display:none; }
+  .dial-detail{ width:62%; }
+  .dial.ready .card{ width:28px; height:28px; }
 }
 
 /* 无 JS 降级：竖直列表 */
 .dial:not(.ready){
-  aspect-ratio:auto; width:min(92vw,560px);
+  aspect-ratio:auto; width:min(100%,560px);
   display:block; touch-action:auto;
 }
 .dial:not(.ready) .dial-track{ display:none; }
@@ -165,17 +197,23 @@
 .dial:not(.ready) .card-label{ display:none; }
 
 @media (prefers-reduced-motion: reduce){
-  .dial.ready .card{ transition:none; }
+  .dial.ready .card, .dial-detail{ transition:none; }
 }
 </style>
 
 <script>
 (function(){
-  var dial  = document.getElementById('dial');
-  var cards = Array.prototype.slice.call(document.querySelectorAll('#dialCards .card'));
+  var dial   = document.getElementById('dial');
+  var detail = document.getElementById('dialDetail');
+  var cards  = Array.prototype.slice.call(document.querySelectorAll('#dialCards .card'));
   var N = cards.length;
-  if(!dial || N === 0) return;
+  if(!dial || !detail || N === 0) return;
   var labels = cards.map(function(c){ return c.querySelector('.card-label'); });
+
+  var dNo    = detail.querySelector('.detail-no');
+  var dTitle = detail.querySelector('.detail-title');
+  var dDate  = detail.querySelector('.detail-date');
+  var dExc   = detail.querySelector('.detail-excerpt');
 
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var step = 360 / N;
@@ -183,6 +221,26 @@
   var rot = -(N-1)*step, target = rot;
 
   function radius(){ return dial.clientWidth * 0.5 * 0.80; }
+
+  /* 标题字号随转盘尺寸缩放，窄屏不会挤成一团 */
+  function syncLabelScale(){
+    var base = Math.max(7, Math.min(11, dial.clientWidth * 0.0196));
+    dial.style.setProperty('--lb', base.toFixed(2) + 'px');
+    dial.style.setProperty('--lbstep', (base * 0.056).toFixed(3) + 'px');
+  }
+
+  /* 中央面板内容跟随焦点切换 */
+  var lastFocus = -1;
+  function updateDetail(idx){
+    if(idx === lastFocus) return;
+    lastFocus = idx;
+    var c = cards[idx];
+    detail.setAttribute('href', c.getAttribute('href'));
+    dNo.textContent    = c.querySelector('.card-no').textContent;
+    dTitle.textContent = c.querySelector('.card-title').textContent;
+    dDate.textContent  = c.querySelector('.card-date').textContent;
+    dExc.textContent   = c.querySelector('.card-excerpt').textContent;
+  }
 
   function render(){
     var R = radius();
@@ -198,7 +256,7 @@
       cards[i].style.transform =
         'translate(-50%,-50%) translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
       cards[i].style.opacity = isFocus ? 1 : opacity.toFixed(2);
-      cards[i].style.zIndex = isFocus ? 9 : (dist < 90 ? 3 : 1);
+      cards[i].style.zIndex = isFocus ? 5 : (dist < 90 ? 3 : 1);
       cards[i].classList.toggle('focus', isFocus);
 
       /* 标题自节点向圆心内伸，各占一个角度扇区，互不压叠。
@@ -213,6 +271,7 @@
         if(lb._flip !== flip){ lb.classList.toggle('flip', flip); lb._flip = flip; }
       }
     }
+    updateDetail(focusIdx);
   }
 
   /* 平滑趋向 target */
@@ -231,8 +290,9 @@
   function snap(){ spinTo(Math.round(target / step) * step); }
 
   dial.classList.add('ready');
+  syncLabelScale();
   render();
-  window.addEventListener('resize', render);
+  window.addEventListener('resize', function(){ syncLabelScale(); render(); });
 
   /* 滚轮旋转 */
   dial.addEventListener('wheel', function(e){
@@ -243,13 +303,14 @@
   }, {passive:false});
 
   /* 拖拽旋转——不使用 setPointerCapture，
-     否则 click 会被重定向到转盘、档案链接永远点不开 */
+     否则 click 会被重定向到转盘、链接永远点不开 */
   var dragging=false, lastA=0, moved=0;
   function angleFromCenter(cx, cy){
     var r = dial.getBoundingClientRect();
     return Math.atan2(cy - (r.top+r.height/2), cx - (r.left+r.width/2)) * 180/Math.PI;
   }
   dial.addEventListener('pointerdown', function(e){
+    if(detail.contains(e.target)) return;   // 中央卡片不参与拖拽
     dragging = true; moved = 0;
     lastA = angleFromCenter(e.clientX, e.clientY);
   });
@@ -261,27 +322,21 @@
     lastA = a; moved += Math.abs(delta);
     target += delta; rot += delta; render();
   });
-  window.addEventListener('pointerup', function(){
-    if(!dragging) return;
-    dragging = false; snap();
-  });
-  window.addEventListener('pointercancel', function(){
-    if(!dragging) return;
-    dragging = false; snap();
-  });
+  function endDrag(){ if(!dragging) return; dragging = false; snap(); }
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
 
-  /* 点击：拖拽后不触发；非焦点先转到顶部；焦点卡直接进入文章 */
+  /* 点击环上节点：转到顶部，不直接跳转（阅读入口是中央卡片）。
+     e.detail === 0 表示键盘触发，此时放行原生跳转以保证可访问性。 */
   cards.forEach(function(c, i){
     c.addEventListener('click', function(e){
-      if(moved > 5){ e.preventDefault(); return; }
-      if(!c.classList.contains('focus')){
-        e.preventDefault();
-        var want = -i*step;
-        while(want - target > 180) want -= 360;
-        while(want - target < -180) want += 360;
-        spinTo(want);
-      }
-      /* 焦点卡：不拦截，走 <a> 原生跳转 */
+      if(e.detail === 0) return;
+      e.preventDefault();
+      if(moved > 5) return;
+      var want = -i*step;
+      while(want - target > 180) want -= 360;
+      while(want - target < -180) want += 360;
+      spinTo(want);
     });
   });
 })();
