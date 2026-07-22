@@ -1,0 +1,28 @@
+{{- /*
+  覆盖主题默认实现，修正上下篇方向。
+
+  站点页面集合按日期倒序（新 → 旧），而 Hugo 的
+  Pages.Next 取的是前一个索引（更新的一篇），
+  Pages.Prev 取的是后一个索引（更旧的一篇）。
+  主题原版把 Next（更新）标成了 «PREV、Prev（更旧）标成了 NEXT»，
+  与阅读直觉相反。这里对调：更旧的在左（«PREV），更新的在右（NEXT»）。
+*/ -}}
+{{- $pages := where site.RegularPages "Type" "in" site.Params.mainSections }}
+{{- if and (gt (len $pages) 1) (in $pages . ) }}
+<nav class="paginav">
+  {{- /* 左：更早写的一篇 */}}
+  {{- with $pages.Prev . }}
+  <a class="prev" href="{{ .Permalink }}">
+    <span class="title">« {{ i18n "prev_page" }}</span>
+    <span>{{- .Name -}}</span>
+  </a>
+  {{- end }}
+  {{- /* 右：更后写的一篇 */}}
+  {{- with $pages.Next . }}
+  <a class="next" href="{{ .Permalink }}">
+    <span class="title">{{ i18n "next_page" }} »</span>
+    <span>{{- .Name -}}</span>
+  </a>
+  {{- end }}
+</nav>
+{{- end }}
