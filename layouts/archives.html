@@ -22,6 +22,7 @@
       <a class="card" href="{{ $p.Permalink }}" data-i="{{ $i }}"
          aria-label="{{ $p.Title | plainify }}">
         <span class="card-no">{{ printf "%02d" (add $i 1) }}</span>
+        <span class="card-label" aria-hidden="true">{{ $p.Title | plainify }}</span>
         <span class="card-title">{{ $p.Title | plainify }}</span>
         <span class="card-date">{{ $p.Date.Format "2006.01.02" }}</span>
         <span class="card-excerpt">{{ substr $ex 0 48 }}…</span>
@@ -83,7 +84,17 @@
   transform:translate(-50%,-50%);
   transition:opacity .4s ease;
   will-change:transform;
-  overflow:hidden;
+}
+
+/* 节点旁的放射状小标题：很小很淡，方便按标题找文章 */
+.dial.ready .card-label{
+  position:absolute; left:50%; top:50%;
+  width:96px; margin-left:-48px; margin-top:-.5em;
+  font-size:.5rem; line-height:1.5; letter-spacing:.02em;
+  color:var(--secondary);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  pointer-events:none;
+  transition:opacity .3s ease;
 }
 .dial.ready .card-no{
   font-size:.62rem; letter-spacing:.05em; color:var(--secondary);
@@ -92,6 +103,9 @@
 .dial.ready .card-title,
 .dial.ready .card-date,
 .dial.ready .card-excerpt{ display:none; }
+
+/* 焦点卡展开时隐藏放射标题，避免与完整卡片重叠 */
+.dial.ready .card.focus .card-label{ display:none; }
 
 /* 顶部焦点：展开为完整档案卡 */
 .dial.ready .card.focus{
@@ -135,7 +149,8 @@
   margin-bottom:.3rem;
 }
 .dial:not(.ready) .card-title{ font-weight:500; }
-.dial:not(.ready) .card-excerpt{ display:none; }
+.dial:not(.ready) .card-excerpt,
+.dial:not(.ready) .card-label{ display:none; }
 
 @media (prefers-reduced-motion: reduce){
   .dial.ready .card{ transition:none; }
@@ -148,6 +163,7 @@
   var cards = Array.prototype.slice.call(document.querySelectorAll('#dialCards .card'));
   var N = cards.length;
   if(!dial || N === 0) return;
+  var labels = cards.map(function(c){ return c.querySelector('.card-label'); });
 
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var step = 360 / N;
@@ -172,6 +188,18 @@
       cards[i].style.opacity = isFocus ? 1 : opacity.toFixed(2);
       cards[i].style.zIndex = isFocus ? 9 : (dist < 90 ? 3 : 1);
       cards[i].classList.toggle('focus', isFocus);
+
+      /* 标题沿半径方向排布，各占一个角度扇区，35 条也不会互相压叠。
+         左半圈翻转 180° 并右对齐，保证文字始终正向、紧贴节点。 */
+      var lb = labels[i];
+      if(lb){
+        var right = (angDeg <= 180);
+        var rotDeg = right ? angDeg - 90 : angDeg + 90;
+        var off = 17 + 6 + 48;   // 节点半径 + 间隙 + 标题半宽
+        lb.style.transform = 'rotate(' + rotDeg.toFixed(1) + 'deg) translateX(' +
+          (right ? off : -off).toFixed(1) + 'px)';
+        lb.style.textAlign = right ? 'left' : 'right';
+      }
     }
   }
 

@@ -25,6 +25,11 @@ iframe {
    =================================================== */
 
 :root {
+    /* 全站统一字体：首页 / 文章 / 标签 / 时间线 / 搜索 一致 */
+    --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial,
+        sans-serif;
+
     --radius: 6px;
     --theme: #ffffff;
     --entry: #ffffff;
@@ -46,6 +51,20 @@ iframe {
     --code-block-bg: #161616;
     --code-bg: #1c1c1c;
     --border: #262626;
+}
+
+/* 字体统一：表单控件默认不继承 body 字体，需显式指定 */
+body,
+input,
+textarea,
+select,
+button,
+h1, h2, h3, h4, h5, h6,
+.post-content,
+.entry-content,
+.searchResults,
+#searchInput {
+    font-family: var(--font-main);
 }
 
 /* 列表页背景与首页统一，保持纯净 */
