@@ -22,7 +22,10 @@
       <a class="card" href="{{ $p.Permalink }}" data-i="{{ $i }}"
          aria-label="{{ $p.Title | plainify }}">
         <span class="card-no">{{ printf "%02d" (add $i 1) }}</span>
-        <span class="card-label" aria-hidden="true">{{ $p.Title | plainify }}</span>
+        {{- $chars := split (substr ($p.Title | plainify) 0 10) "" }}
+        <span class="card-label" aria-hidden="true" style="--cn:{{ len $chars }}">
+          {{- range $ci, $ch := $chars }}<i style="--ci:{{ $ci }}">{{ $ch }}</i>{{ end -}}
+        </span>
         <span class="card-title">{{ $p.Title | plainify }}</span>
         <span class="card-date">{{ $p.Date.Format "2006.01.02" }}</span>
         <span class="card-excerpt">{{ substr $ex 0 48 }}…</span>
@@ -86,15 +89,24 @@
   will-change:transform;
 }
 
-/* 节点旁的放射状小标题：很小很淡，方便按标题找文章 */
+/* 圆环内侧的放射状标题：贴近圆环的字最大，越往圆心越小 */
 .dial.ready .card-label{
   position:absolute; left:50%; top:50%;
-  width:96px; margin-left:-48px; margin-top:-.5em;
-  font-size:.5rem; line-height:1.5; letter-spacing:.02em;
+  transform-origin:0 0;
+  display:flex; align-items:center;
+  line-height:1; letter-spacing:.02em;
   color:var(--secondary);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap;
   pointer-events:none;
-  transition:opacity .3s ease;
+}
+.dial.ready .card-label i{
+  font-style:normal;
+  /* 第 0 字贴环最大，逐字向圆心缩小 */
+  font-size:calc(11px - var(--ci) * 0.62px);
+}
+/* 右半圈翻转后文字由圆心读向圆环，故末字贴环最大 */
+.dial.ready .card-label.flip i{
+  font-size:calc(11px - (var(--cn) - 1 - var(--ci)) * 0.62px);
 }
 .dial.ready .card-no{
   font-size:.62rem; letter-spacing:.05em; color:var(--secondary);
@@ -189,16 +201,16 @@
       cards[i].style.zIndex = isFocus ? 9 : (dist < 90 ? 3 : 1);
       cards[i].classList.toggle('focus', isFocus);
 
-      /* 标题沿半径方向排布，各占一个角度扇区，35 条也不会互相压叠。
-         左半圈翻转 180° 并右对齐，保证文字始终正向、紧贴节点。 */
+      /* 标题自节点向圆心内伸，各占一个角度扇区，互不压叠。
+         右半圈若直接内伸会倒置，故翻转为由圆心读向圆环（贴环端仍最大）。 */
       var lb = labels[i];
       if(lb){
-        var right = (angDeg <= 180);
-        var rotDeg = right ? angDeg - 90 : angDeg + 90;
-        var off = 17 + 6 + 48;   // 节点半径 + 间隙 + 标题半宽
-        lb.style.transform = 'rotate(' + rotDeg.toFixed(1) + 'deg) translateX(' +
-          (right ? off : -off).toFixed(1) + 'px)';
-        lb.style.textAlign = right ? 'left' : 'right';
+        var flip = (angDeg <= 180);
+        var GAP = 22;   // 节点半径 + 间隙
+        lb.style.transform = flip
+          ? 'rotate(' + (angDeg - 90).toFixed(1) + 'deg) translate(calc(-100% - ' + GAP + 'px), -50%)'
+          : 'rotate(' + (angDeg + 90).toFixed(1) + 'deg) translate(' + GAP + 'px, -50%)';
+        if(lb._flip !== flip){ lb.classList.toggle('flip', flip); lb._flip = flip; }
       }
     }
   }
