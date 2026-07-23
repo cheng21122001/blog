@@ -274,10 +274,13 @@
       cards[i].classList.toggle('focus', isFocus);
 
       /* 标题自节点向圆心内伸，各占一个角度扇区，互不压叠。
-         右半圈若直接内伸会倒置，故翻转为由圆心读向圆环（贴环端仍最大）。 */
+         右半圈若直接内伸会倒置，故翻转为由圆心读向圆环（贴环端仍最大）。
+         翻转的分界线偏移半格：正上方（焦点）与正下方都不落在分界上，
+         于是停在顶端的那篇标题恒为自上而下顺读，不会一转到就翻成倒读。 */
       var lb = labels[i];
       if(lb){
-        var flip = (angDeg <= 180);
+        var half = step / 2;
+        var flip = (angDeg > half && angDeg <= 180 + half);
         var GAP = cards[i].offsetWidth / 2 + 6;   // 节点半径 + 间隙（随窄屏缩小）
         lb.style.transform = flip
           ? 'rotate(' + (angDeg - 90).toFixed(1) + 'deg) translate(calc(-100% - ' + GAP + 'px), -50%)'
