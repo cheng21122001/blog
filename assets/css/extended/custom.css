@@ -161,6 +161,7 @@ h1, h2, h3, h4, h5, h6,
 
 .profile .profile_inner > span {
     color: var(--secondary);
+    font-size: 0.88rem;
     line-height: 2.1;
     letter-spacing: 0.05em;
 }
@@ -246,6 +247,7 @@ h1, h2, h3, h4, h5, h6,
 @media (max-width: 640px) {
     .profile .ascii-bg { opacity: 0.32; }
     :root[data-theme="dark"] .profile .ascii-bg { opacity: 0.3; }
+    .profile .profile_inner > span { font-size: 0.8rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
