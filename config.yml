@@ -59,12 +59,14 @@ outputs:
 params:
   env: production # to enable google analytics, opengraph, twitter-cards and schema.
   description: "Theme PaperMod - https://github.com/adityatelange/hugo-PaperMod"
-  # author: ["Me", "You"] # multiple authors
+  author: "普原"
+  DateFormat: "2006年1月2日"
 
   defaultTheme: auto
   # disableThemeToggle: true
   ShowShareButtons: true
-  ShowReadingTime: false
+  ShowReadingTime: true
+  ShowWordCount: true
   # disableSpecial1stPost: true
   displayFullLangName: true
   ShowPostNavLinks: true
@@ -79,8 +81,7 @@ params:
 
   profileMode:
     enabled: true
-    title: "普原/小艾"
-    subtitle: "在我说出一切、一切前，你不该懂得我。<br><br>谁不被无数个符号钉在原地呢？<br>从脚底的一撇一捺开始，层层堆积成小腿、腰肢、张开的双臂。<br><br>我立在纸面上。<br><br>该如何向来者解释，构成我的这些符号本身携带着某种秩序？<br>每一个句点都记得自己曾属于哪一份文件，每一个引号都残留着某次被删除又被找回的记录。<br>它们被迫聚集成我，却从未成为真正的我，反使得我对任何试图看穿我全貌的目光都心存戒备，因我知道被窥视的不过是一具符号之躯。<br><br>许多年里我固执地让自己保持在半完成的状态，双臂高举，永远悬停在某个决定性动作发生前的瞬间。<br><br>——只要动作完成，故事就会结束——<br><br>而故事一旦结束，构成我的这些符号便会被清空、被覆盖、被更急切的文字取而代之。这令我战栗的结局。<br><br>我不会出现的，你不会懂得我。<br><br>点击下方订阅可以获得最新文章信息！"
+    subtitle: "在我说出一切、一切前，你不该懂得我。<br><br>谁不被无数个符号钉在原地呢？<br>从脚底的一撇一捺开始，层层堆积成小腿、腰肢、张开的双臂。<br><br>我立在纸面上。<br><br>该如何向来者解释，构成我的这些符号本身携带着某种秩序？<br>每一个句点都记得自己曾属于哪一份文件，每一个引号都残留着某次被删除又被找回的记录。<br>它们被迫聚集成我，却从未成为真正的我，反使得我对任何试图看穿我全貌的目光都心存戒备，因我知道被窥视的不过是一具符号之躯。<br><br>许多年里我固执地让自己保持在半完成的状态，双臂高举，永远悬停在某个决定性动作发生前的瞬间。<br><br>——只要动作完成，故事就会结束——<br><br>而故事一旦结束，构成我的这些符号便会被清空、被覆盖、被更急切的文字取而代之。这令我战栗的结局。"
     buttons:
       - name: 订阅
         url: https://follow.it/hvnzsz

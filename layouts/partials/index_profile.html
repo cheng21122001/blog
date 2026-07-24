@@ -34,7 +34,9 @@
             height="{{ .imageHeight | default 150 }}" width="{{ .imageWidth | default 150 }}" />
         {{- end }}
         {{- end }}
-        <h1>{{ .title | default site.Title | markdownify }}</h1>
+        {{- with .title }}
+        <h1>{{ . | markdownify }}</h1>
+        {{- end }}
         <span>{{ .subtitle | markdownify }}</span>
         {{- partial "social_icons.html" -}}
 
@@ -59,7 +61,6 @@
         {{- end }}
 
         <p style="margin-top: 1.5rem;">
-            欢迎点击莫名其妙的链接：<br><br>
             <a href="https://her-room-gamma.vercel.app" target="_blank" rel="noopener">https://her-room-gamma.vercel.app</a>
         </p>
     </div>
