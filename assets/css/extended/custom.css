@@ -201,6 +201,47 @@ h1, h2, h3, h4, h5, h6,
 }
 
 /* ===================================================
+   首页 ASCII 舞者背景水印
+   =================================================== */
+
+.main .profile {
+    position: relative;
+    overflow: hidden;
+}
+
+.profile .ascii-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    /* 淡到只作衬底，不与正文抢注意力 */
+    opacity: 0.13;
+    pointer-events: none;
+    /* 黑字白底图：正片叠底让白底隐去，只留线条 */
+    mix-blend-mode: multiply;
+    animation: intro-fade-up 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+/* 深色模式：反相成白线，再用滤色让黑底隐去 */
+:root[data-theme="dark"] .profile .ascii-bg {
+    filter: invert(1);
+    mix-blend-mode: screen;
+    opacity: 0.16;
+}
+
+/* 内容始终压在水印之上 */
+.profile .profile_inner {
+    position: relative;
+    z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile .ascii-bg { animation: none; }
+}
+
+/* ===================================================
    入场动画：内容依次淡入上浮
    =================================================== */
 

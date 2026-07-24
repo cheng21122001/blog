@@ -1,4 +1,8 @@
 <div class="profile">
+    {{- /* 首页 ASCII 舞者背景水印；文件缺失时自动不渲染，不报错 */ -}}
+    {{- with resources.Get "images/hero-ascii.png" }}
+    <div class="ascii-bg" aria-hidden="true" style="background-image:url('{{ .RelPermalink }}');"></div>
+    {{- end }}
     {{- with site.Params.profileMode }}
     <div class="profile_inner">
         {{- if .imageUrl -}}
