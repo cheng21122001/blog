@@ -15,13 +15,19 @@
     <!-- 虚线刻度盘 -->
     <div class="dial-track" aria-hidden="true"></div>
 
-    <!-- 中央详情面板：显示当前转到顶部的那篇 -->
-    <a class="dial-detail" id="dialDetail" href="#">
-      <span class="detail-no"></span>
-      <span class="detail-title"></span>
-      <span class="detail-date"></span>
-      <span class="detail-excerpt"></span>
-    </a>
+    <!-- 中央详情面板：显示当前转到顶部的那篇；下方一行翻页文字在批次间切换 -->
+    <div class="dial-detail" id="dialDetail">
+      <a class="detail-link" id="dialDetailLink" href="#">
+        <span class="detail-no"></span>
+        <span class="detail-title"></span>
+        <span class="detail-date"></span>
+        <span class="detail-excerpt"></span>
+      </a>
+      <div class="detail-pager" id="detailPager">
+        <button type="button" class="pager-btn" data-dir="newer">← 最近</button>
+        <button type="button" class="pager-btn" data-dir="older">更早 →</button>
+      </div>
+    </div>
 
     <!-- 文章档案卡（真实链接，无 JS 时降级为列表） -->
     <div class="dial-cards" id="dialCards">
@@ -88,7 +94,6 @@
   position:absolute; top:50%; left:50%;
   transform:translate(-50%,-50%);
   width:min(34%, 300px); box-sizing:border-box;
-  display:flex; flex-direction:column; gap:.35rem;
   padding:.9rem 1rem;
   background:var(--theme);
   border:1px solid var(--primary);
@@ -100,6 +105,9 @@
 .dial-detail:hover{
   transform:translate(-50%,-50%) translateY(-2px);
   box-shadow:0 12px 30px rgba(0,0,0,.16);
+}
+.detail-link{
+  display:flex; flex-direction:column; gap:.35rem;
 }
 .detail-no{
   font-size:.6rem; letter-spacing:.15em; color:var(--secondary);
@@ -119,6 +127,24 @@
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
   overflow:hidden;
 }
+/* 中央卡片下方的翻页文字：极简，与"介绍区里的链接"同一套视觉语言 */
+.detail-pager{
+  display:flex; justify-content:space-between;
+  margin-top:.7rem; padding-top:.6rem;
+  border-top:1px solid var(--border);
+}
+.pager-btn{
+  font:inherit; cursor:pointer; background:none; border:none; padding:0;
+  color:var(--secondary); font-size:.74rem; letter-spacing:.04em;
+  text-decoration:underline; text-decoration-color:var(--tertiary);
+  text-underline-offset:3px;
+  transition:color .2s ease, text-decoration-color .2s ease;
+}
+.pager-btn:hover{ color:var(--primary); text-decoration-color:var(--primary); }
+.pager-btn:disabled{
+  visibility:hidden; cursor:default;
+}
+
 /* 无 JS 时中央面板无内容，直接隐藏 */
 .dial:not(.ready) .dial-detail{ display:none; }
 
@@ -217,22 +243,30 @@
 
 <script>
 (function(){
-  var dial   = document.getElementById('dial');
-  var detail = document.getElementById('dialDetail');
-  var cards  = Array.prototype.slice.call(document.querySelectorAll('#dialCards .card'));
-  var N = cards.length;
-  if(!dial || !detail || N === 0) return;
-  var labels = cards.map(function(c){ return c.querySelector('.card-label'); });
+  var dial     = document.getElementById('dial');
+  var detail   = document.getElementById('dialDetail');
+  var link     = document.getElementById('dialDetailLink');
+  var pager    = document.getElementById('detailPager');
+  var allCards = Array.prototype.slice.call(document.querySelectorAll('#dialCards .card'));
+  if(!dial || !detail || allCards.length === 0) return;
 
   var dNo    = detail.querySelector('.detail-no');
   var dTitle = detail.querySelector('.detail-title');
   var dDate  = detail.querySelector('.detail-date');
   var dExc   = detail.querySelector('.detail-excerpt');
+  var btnNewer = pager ? pager.querySelector('[data-dir="newer"]') : null;
+  var btnOlder = pager ? pager.querySelector('[data-dir="older"]') : null;
 
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var step = 360 / N;
-  /* 初始聚焦最新一篇（编号最大） */
-  var rot = -(N-1)*step, target = rot;
+
+  /* 转盘一次只放一批，太多文章挤在同一圈会互相压字。
+     按时间顺序切成固定大小的批次，默认停在最新一批；
+     中央卡片下方的"更早 / 最近"负责换批，不新增别的界面。 */
+  var BATCH_SIZE = 36;
+  var batchCount = Math.ceil(allCards.length / BATCH_SIZE);
+  var currentBatch = batchCount - 1;
+
+  var cards = [], labels = [], N = 0, step = 0, rot = 0, target = 0, lastFocus = -1;
 
   function radius(){ return dial.clientWidth * 0.5 * 0.80; }
 
@@ -244,12 +278,11 @@
   }
 
   /* 中央面板内容跟随焦点切换 */
-  var lastFocus = -1;
   function updateDetail(idx){
     if(idx === lastFocus) return;
     lastFocus = idx;
     var c = cards[idx];
-    detail.setAttribute('href', c.getAttribute('href'));
+    link.setAttribute('href', c.getAttribute('href'));
     dNo.textContent    = c.querySelector('.card-no').textContent;
     dTitle.textContent = c.querySelector('.card-title').textContent;
     dDate.textContent  = c.querySelector('.card-date').textContent;
@@ -306,10 +339,42 @@
   }
   function snap(){ spinTo(Math.round(target / step) * step); }
 
+  /* 切换批次：只有这一批留在转盘里参与布局，其余隐藏 */
+  function setActiveBatch(bi){
+    bi = Math.max(0, Math.min(batchCount - 1, bi));
+    currentBatch = bi;
+    /* 从最新一端往回切，默认这一批放满 BATCH_SIZE 篇最近的；
+       除不尽的零头留给最旧的那一批，而不是让默认视图缩水。 */
+    var end = allCards.length - (batchCount - 1 - bi) * BATCH_SIZE;
+    var start = Math.max(0, end - BATCH_SIZE);
+    allCards.forEach(function(c, i){
+      c.style.display = (i >= start && i < end) ? '' : 'none';
+    });
+    cards  = allCards.slice(start, end);
+    labels = cards.map(function(c){ return c.querySelector('.card-label'); });
+    N = cards.length;
+    step = 360 / N;
+    rot = -(N-1)*step;  // 初始聚焦本批最新一篇
+    target = rot;
+    lastFocus = -1;
+    if(raf){ cancelAnimationFrame(raf); raf = null; }
+    if(btnNewer) btnNewer.disabled = (bi >= batchCount - 1);
+    if(btnOlder) btnOlder.disabled = (bi <= 0);
+    syncLabelScale();
+    render();
+  }
+
   dial.classList.add('ready');
-  syncLabelScale();
-  render();
+  setActiveBatch(currentBatch);
   window.addEventListener('resize', function(){ syncLabelScale(); render(); });
+
+  if(pager){
+    pager.addEventListener('click', function(e){
+      var btn = e.target.closest ? e.target.closest('.pager-btn') : null;
+      if(!btn || btn.disabled) return;
+      setActiveBatch(currentBatch + (btn.dataset.dir === 'older' ? -1 : 1));
+    });
+  }
 
   /* 滚轮旋转 */
   dial.addEventListener('wheel', function(e){
@@ -344,12 +409,15 @@
   window.addEventListener('pointercancel', endDrag);
 
   /* 点击环上节点：转到顶部，不直接跳转（阅读入口是中央卡片）。
-     e.detail === 0 表示键盘触发，此时放行原生跳转以保证可访问性。 */
-  cards.forEach(function(c, i){
+     e.detail === 0 表示键盘触发，此时放行原生跳转以保证可访问性。
+     绑定在全部卡片上，实际动作按当前批次子集里的下标计算。 */
+  allCards.forEach(function(c){
     c.addEventListener('click', function(e){
       if(e.detail === 0) return;
       e.preventDefault();
       if(moved > 5) return;
+      var i = cards.indexOf(c);
+      if(i === -1) return;
       var want = -i*step;
       while(want - target > 180) want -= 360;
       while(want - target < -180) want += 360;
