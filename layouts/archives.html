@@ -21,14 +21,16 @@
       <!-- 文章档案卡（真实链接，无 JS 时降级为竖直列表） -->
       <div class="dial-cards" id="dialCards">
         {{- range $i, $p := $pages }}
-        {{- $ex := $p.Plain | plainify | chomp }}
-        {{- $t := $p.Title | plainify }}
+        {{- /* .Plain 里直引号经过智能排版会变成字面的 "&ldquo;" 文本（不是真的引号字符），
+               模板输出时再转义一次就成了 "&amp;ldquo;"——先 htmlUnescape 转回真字符。 */ -}}
+        {{- $ex := $p.Plain | plainify | chomp | htmlUnescape }}
+        {{- $t := $p.Title | plainify | htmlUnescape }}
         <a class="card" href="{{ $p.Permalink }}" data-i="{{ $i }}" aria-label="{{ $t }}">
           <span class="card-no">{{ printf "%02d" (add $i 1) }}</span>
           <span class="card-label" aria-hidden="true">{{ if gt (len $t) 10 }}{{ substr $t 0 10 }}…{{ else }}{{ $t }}{{ end }}</span>
           <span class="card-title">{{ $t }}</span>
           <span class="card-date">{{ $p.Date.Format "2006.01.02" }}</span>
-          <span class="card-excerpt">{{ substr $ex 0 36 }}…</span>
+          <span class="card-excerpt">{{ if gt (len $ex) 400 }}{{ substr $ex 0 400 }}…{{ else }}{{ $ex }}{{ end }}</span>
         </a>
         {{- end }}
       </div>
@@ -47,7 +49,7 @@
     <!-- 竖直进度条：越早的文章越靠上 -->
     <div class="posbar-wrap" id="posbarWrap" title="共 {{ len $pages }} 篇，滑块是当前显示的这一段">
       <span class="posbar-num" id="rangeLo">1</span>
-      <div class="posbar-track">
+      <div class="posbar-track" id="posbarTrack">
         <div class="posbar-fill" id="posbarFill"></div>
       </div>
       <span class="posbar-num" id="rangeHi">{{ len $pages }}</span>
@@ -131,7 +133,9 @@
 /* ── 详情卡：半透明毛玻璃，不是纯色背景 ── */
 .dial-detail{
   position:relative; flex:none;
-  width:min(36vw, 300px); min-height:340px; box-sizing:border-box;
+  /* 高度和圆弧看齐、固定住，而不是跟着摘要长度一直往下长——
+     卡有多高，摘要就顺着 overflow 露多少字。 */
+  width:min(36vw, 300px); height:min(70vh, 560px); box-sizing:border-box;
   display:flex; flex-direction:column;
   padding:1.3rem 1.2rem;
   background:rgba(255,255,255,.78);
@@ -156,10 +160,11 @@
   font-size:.68rem; color:var(--secondary); margin-top:.5rem;
   font-variant-numeric:tabular-nums; letter-spacing:.05em;
 }
+/* 不设行数上限——卡片多高就露多少字，被截掉的部分交给 overflow 自然裁掉，
+   而不是死死卡在固定的 6 行（卡片矮了空着一截，卡片高了又提前截断）。 */
 .detail-excerpt{
   font-size:.8rem; color:var(--secondary); line-height:1.75; margin-top:.8rem;
   flex:1;
-  display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical;
   overflow:hidden;
 }
 /* 无 JS 时中央面板无内容，直接隐藏 */
@@ -177,29 +182,36 @@
 }
 .posbar-track{
   position:relative; flex:1; width:3px; background:var(--tertiary); border-radius:2px;
+  cursor:pointer; touch-action:none;
 }
-/* JS 只设两个自定义属性（起点/长度百分比），具体映射到竖向还是横向
-   由当前断点的 CSS 决定，JS 不需要关心断点在哪。 */
+/* 视觉上还是那条 3px 细线，但可点击/可拖的判定区域横向再宽出去一截，
+   不然这么细一条在手机上根本按不准 */
+.posbar-track::before{
+  content:''; position:absolute; top:0; bottom:0; left:-10px; right:-10px;
+}
 .posbar-fill{
   position:absolute; left:0; right:0;
   top:var(--seg-start,0%); height:var(--seg-size,0%);
   background:var(--primary); border-radius:2px;
+  pointer-events:none;
   transition:top .05s linear, height .05s linear;
 }
 .dial:not(.ready) .posbar-wrap{ display:none; }
 
-/* 窄屏：竖着摞（弧在上、详情卡中间、进度条最下） */
+/* 窄屏：还是同一行（弧｜详情卡｜进度条），不摞起来——
+   圆弧和详情卡要在同一屏看到，只把三样都缩小、间距收紧。 */
 @media (max-width:640px){
-  .dial{ flex-direction:column; gap:1.2rem; }
-  .arc-wrap{ width:min(80vw,340px); height:min(46vh,360px); }
-  .dial-detail{ width:min(92vw,340px); }
-  .posbar-wrap{ flex-direction:row; width:min(92vw,260px); height:auto; align-self:center; }
-  .posbar-track{ height:3px; width:auto; flex:1; }
-  .posbar-fill{
-    left:var(--seg-start,0%); width:var(--seg-size,0%); right:auto;
-    top:0; bottom:0; height:auto;
-    transition:left .05s linear, width .05s linear;
-  }
+  .dial{ gap:1rem; width:98vw; }
+  .arc-wrap{ width:25vw; height:min(64vh,460px); }
+  .dial-detail{ width:42vw; height:min(64vh,460px); padding:.9rem .8rem; }
+  .detail-title{ font-size:.96rem; }
+  .detail-excerpt{ font-size:.74rem; line-height:1.6; margin-top:.6rem; }
+  .posbar-wrap{ width:22px; }
+  /* 窗口两端的节点本来就贴着锚点（x≈0），窄屏间距本来就小，
+     节点缩小一圈才不会蹭到详情卡的边 */
+  .dial.ready .card{ width:20px; height:20px; margin:-10px 0 0 -10px; }
+  .dial.ready .card-no{ font-size:.54rem; }
+  .dial.ready .card-label{ font-size:9px; transform:translate(calc(-100% - 10px), -50%); }
 }
 
 /* 无 JS 降级：竖直列表 */
@@ -238,7 +250,8 @@
   var allCards  = Array.prototype.slice.call(document.querySelectorAll('#dialCards .card'));
   var rangeLo   = document.getElementById('rangeLo');
   var rangeHi   = document.getElementById('rangeHi');
-  var posbarFill = document.getElementById('posbarFill');
+  var posbarFill  = document.getElementById('posbarFill');
+  var posbarTrack = document.getElementById('posbarTrack');
   if(!dial || !arcWrap || !detail || allCards.length === 0) return;
 
   var TOTAL = allCards.length;
@@ -367,7 +380,9 @@
   arcWrap.addEventListener('pointermove', function(e){
     if(!dragging) return;
     var dy = e.clientY - lastY;
-    windowStart += dy * 0.045;
+    /* 触屏手感是"内容跟着手指走"，和鼠标拖拽的方向感觉正好相反，分开处理 */
+    var sign = (e.pointerType === 'touch') ? -1 : 1;
+    windowStart += sign * dy * 0.045;
     target = windowStart;
     lastY = e.clientY;
     moved += Math.abs(dy);
@@ -376,6 +391,31 @@
   function endDrag(){ dragging = false; }
   arcWrap.addEventListener('pointerup', endDrag);
   arcWrap.addEventListener('pointercancel', endDrag);
+
+  /* 进度条本身也能直接拖：按住/拖到哪，窗口起点就跳到全部文章里对应的那个位置。 */
+  var barDragging = false;
+  function windowStartFromTrackY(clientY){
+    var r = posbarTrack.getBoundingClientRect();
+    var frac = clamp((clientY - r.top) / r.height, 0, 1);
+    return frac * (TOTAL - WINDOW);
+  }
+  posbarTrack.addEventListener('pointerdown', function(e){
+    barDragging = true;
+    if(raf){ cancelAnimationFrame(raf); raf = null; }
+    windowStart = windowStartFromTrackY(e.clientY);
+    target = windowStart;
+    render();
+    posbarTrack.setPointerCapture(e.pointerId);
+  });
+  posbarTrack.addEventListener('pointermove', function(e){
+    if(!barDragging) return;
+    windowStart = windowStartFromTrackY(e.clientY);
+    target = windowStart;
+    render();
+  });
+  function endBarDrag(){ barDragging = false; }
+  posbarTrack.addEventListener('pointerup', endBarDrag);
+  posbarTrack.addEventListener('pointercancel', endBarDrag);
 
   /* 点击环上节点：滑到让它成为焦点，不直接跳转（阅读入口是详情卡）。
      e.detail === 0 表示键盘触发，此时放行原生跳转以保证可访问性。 */
