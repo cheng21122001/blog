@@ -10,7 +10,6 @@
   <header class="sp-head">
     <h1 class="sp-title">{{ .Title }}</h1>
     <span class="sp-rule" aria-hidden="true"></span>
-    <p class="sp-hint">向下滚动 · 十二篇绕一圈 · 共 {{ len $pages }} 篇</p>
   </header>
 
   <div class="sp-stage" id="spStage">
@@ -58,7 +57,7 @@
          data-i="{{ $gi }}" data-now="1"
          data-date="当下"
          data-title="最新的文章"
-         data-excerpt="螺旋走到这里就是此刻。下面是最近写的几篇。">
+         data-excerpt="">
         <span class="sp-dot" aria-hidden="true"></span>
         <span class="sp-cap"><span class="sp-cap-title">当下</span></span>
       </a>
@@ -87,6 +86,13 @@
 /* ── 这一页专属：纯黑白两套配色，跟随站点右上角的主题切换 ── */
 body{ background:#fff; }
 :root[data-theme="dark"] body{ background:#000; }
+
+/* 站点导航栏（档案间 / 搜索 · 标签 · 时间线）在这一页钉住不动 */
+.header{
+  position:sticky; top:0; z-index:20;
+  background:#fff;
+}
+:root[data-theme="dark"] .header{ background:#000; }
 
 .sp-root,
 .sp-panel{
@@ -118,39 +124,34 @@ body{ background:#fff; }
   overflow-x:clip;
 }
 
-/* ── 标题：钉在左上角不动，螺旋从它身后走过 ── */
+/* ── 标题：居中钉住不动，螺旋从它身后走过（和 Search / Tags 一个格式） ── */
 .sp-head{
-  position:sticky; top:0; z-index:6;
-  padding:2.5rem max(6vw,20px) 1.6rem;
+  /* 钉在站点导航栏底下，两块不打架 */
+  position:sticky; top:var(--header-height); z-index:6;
+  padding:2.2rem max(6vw,20px) 1.6rem;
+  text-align:center;
   pointer-events:none;
   background:linear-gradient(to bottom,
     var(--sp-bg) 0, var(--sp-bg) 68%, transparent 100%);
 }
 .sp-title{
   margin:0;
-  font-size:clamp(1.5rem,3.2vw,2rem);
-  font-weight:700;
-  letter-spacing:.06em;
+  font-size:2rem; font-weight:600;
+  letter-spacing:.4em; text-indent:.4em;
   color:var(--sp-ink);
 }
 .sp-rule{
-  display:block; width:64px; height:2px; margin:1.1rem 0 0;
+  display:block; width:64px; height:2px; margin:1.1rem auto 0;
   background:var(--sp-ink);
 }
-.sp-hint{
-  margin:1.2rem 0 0;
-  font-size:.74rem; letter-spacing:.14em; color:var(--sp-mute);
-  transition:opacity .4s ease;
-}
-/* 滚起来之后提示语淡出，只留标题钉在那儿 */
-.sp-root.scrolled .sp-hint{ opacity:0; }
 
 /* ── 螺旋舞台 ── */
 .sp-stage{
   position:relative;
   /* 上下留白，保证首尾节点都能走到视窗中线；
      左边让开钉住的标题，右边让开详情面板 */
-  padding:30vh min(430px,34vw) 46vh min(160px,12vw);
+  /* 底部留白要够半屏，「当下」那颗大圆点才能走到视窗中线上 */
+  padding:30vh min(430px,34vw) 54vh min(160px,12vw);
 }
 .sp-canvas{
   position:relative;
@@ -267,7 +268,8 @@ body{ background:#fff; }
 .sp-p-go:hover{ background:var(--sp-ink); color:var(--sp-bg); }
 .sp-p-list{ display:none; margin:1.1rem 0 0; padding:0; list-style:none; }
 .sp-panel.now-mode .sp-p-list{ display:block; }
-.sp-panel.now-mode .sp-p-go{ display:none; }
+.sp-panel.now-mode .sp-p-go,
+.sp-panel.now-mode .sp-p-ex{ display:none; }
 .sp-p-list li + li{ border-top:1px solid var(--sp-hair); }
 .sp-p-list a{
   display:block; padding:.65rem 0;
@@ -290,7 +292,8 @@ body{ background:#fff; }
 /* ── 手机竖屏：面板从底部滑出 ── */
 @media (max-width:768px){
   .sp-head{ padding-top:1.6rem; }
-  .sp-stage{ padding:34vh 0 40vh; }
+  .sp-title{ font-size:1.5rem; letter-spacing:.3em; text-indent:.3em; }
+  .sp-stage{ padding:30vh 0 54vh; }
   .sp-canvas{ width:92vw; }
   .sp-root.ready .sp-cap{ max-width:40vw; font-size:.68rem; }
   .sp-panel{
@@ -507,7 +510,6 @@ body{ background:#fff; }
 
   function update(){
     var mid = window.pageYOffset + window.innerHeight / 2;
-    root.classList.toggle('scrolled', window.pageYOffset > 160);
 
     /* 节点按纵坐标天然有序，二分找离中线最近的那个 */
     var lo = 0, hi = nodes.length - 1;
@@ -554,9 +556,22 @@ body{ background:#fff; }
     });
   });
 
+  /* 每次进来都落在螺旋最底端——最新的那一头 */
+  var userMoved = false;
+  function gotoLatest(){
+    var last = nodes[nodes.length - 1];
+    window.scrollTo(0, Math.max(0, last._doc - window.innerHeight / 2));
+    update();
+  }
+  ['wheel','touchstart','keydown'].forEach(function(ev){
+    window.addEventListener(ev, function(){ userMoved = true; }, { passive:true, once:true });
+  });
+
   root.classList.add('ready');
   layout();
-  update();
+  /* 浏览器会"好心"恢复上次的滚动位置，这里得先关掉，否则定位不到最新 */
+  if('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  gotoLatest();
 
   window.addEventListener('scroll', onScroll, { passive:true });
   var rt = null;
@@ -570,7 +585,11 @@ body{ background:#fff; }
       update();
     }, 120);
   });
-  if(document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
+  /* 字体加载完位置会挪，重新量一遍；用户还没动过就再对一次焦 */
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){
+    measure();
+    if(!userMoved) gotoLatest(); else update();
+  });
 })();
 </script>
 
