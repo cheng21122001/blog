@@ -133,14 +133,14 @@
 /* ── 详情卡：半透明毛玻璃，不是纯色背景 ── */
 .dial-detail{
   position:relative; flex:none;
-  /* 高度和圆弧看齐、固定住，而不是跟着摘要长度一直往下长——
-     卡有多高，摘要就顺着 overflow 露多少字。 */
-  width:min(36vw, 300px); height:min(70vh, 560px); box-sizing:border-box;
+  /* 高度跟着内容走（摘要固定 8 行），不再拉到和圆弧一样高 */
+  width:min(36vw, 300px); box-sizing:border-box;
   display:flex; flex-direction:column;
   padding:1.3rem 1.2rem;
   background:rgba(255,255,255,.78);
-  border:1px solid var(--primary);
-  border-radius:6px;
+  /* 底边不封口：只留上、左、右三条线，让卡片向下敞开 */
+  border:1px solid var(--primary); border-bottom:none;
+  border-radius:6px 6px 0 0;
   box-shadow:0 8px 26px rgba(0,0,0,.10);
   backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
   z-index:5;
@@ -160,11 +160,9 @@
   font-size:.68rem; color:var(--secondary); margin-top:.5rem;
   font-variant-numeric:tabular-nums; letter-spacing:.05em;
 }
-/* 不设行数上限——卡片多高就露多少字，被截掉的部分交给 overflow 自然裁掉，
-   而不是死死卡在固定的 6 行（卡片矮了空着一截，卡片高了又提前截断）。 */
 .detail-excerpt{
   font-size:.8rem; color:var(--secondary); line-height:1.75; margin-top:.8rem;
-  flex:1;
+  display:-webkit-box; -webkit-line-clamp:8; -webkit-box-orient:vertical;
   overflow:hidden;
 }
 /* 无 JS 时中央面板无内容，直接隐藏 */
@@ -201,17 +199,14 @@
 /* 窄屏：还是同一行（弧｜详情卡｜进度条），不摞起来——
    圆弧和详情卡要在同一屏看到，只把三样都缩小、间距收紧。 */
 @media (max-width:640px){
-  .dial{ gap:1rem; width:98vw; }
-  .arc-wrap{ width:25vw; height:min(64vh,460px); }
-  .dial-detail{ width:42vw; height:min(64vh,460px); padding:.9rem .8rem; }
-  .detail-title{ font-size:.96rem; }
-  .detail-excerpt{ font-size:.74rem; line-height:1.6; margin-top:.6rem; }
+  /* 手机上不放详情卡，圆弧独占版面；点节点直接进文章（见脚本里的判断） */
+  .dial{ gap:.8rem; width:98vw; }
+  .dial-detail{ display:none; }
+  .arc-wrap{ width:72vw; height:min(64vh,460px); }
   .posbar-wrap{ width:22px; }
-  /* 窗口两端的节点本来就贴着锚点（x≈0），窄屏间距本来就小，
-     节点缩小一圈才不会蹭到详情卡的边 */
-  .dial.ready .card{ width:20px; height:20px; margin:-10px 0 0 -10px; }
-  .dial.ready .card-no{ font-size:.54rem; }
-  .dial.ready .card-label{ font-size:9px; transform:translate(calc(-100% - 10px), -50%); }
+  .dial.ready .card{ width:26px; height:26px; margin:-13px 0 0 -13px; }
+  .dial.ready .card-no{ font-size:.58rem; }
+  .dial.ready .card-label{ font-size:10px; transform:translate(calc(-100% - 11px), -50%); }
 }
 
 /* 无 JS 降级：竖直列表 */
@@ -422,6 +417,12 @@
   allCards.forEach(function(c, i){
     c.addEventListener('click', function(e){
       if(e.detail === 0) return;
+      /* 手机上详情卡被隐藏了，没有别的阅读入口，直接放行原生跳转；
+         桌面端仍是"点节点只把它转到焦点，读文章走详情卡"。 */
+      if(detail.offsetParent === null){
+        if(moved > 6) e.preventDefault();
+        return;
+      }
       e.preventDefault();
       if(moved > 6) return;
       animateTo(i - CENTER_I);
