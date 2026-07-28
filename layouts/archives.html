@@ -15,8 +15,17 @@
     <div class="sp-canvas" id="spCanvas">
 
       <svg class="sp-svg" id="spSvg" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="spFade" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2="1">
+            <stop class="sp-fade-stop" offset="0"   stop-opacity="1"/>
+            <stop class="sp-fade-stop" offset="0.5" stop-opacity=".45"/>
+            <stop class="sp-fade-stop" offset="1"   stop-opacity="0"/>
+          </linearGradient>
+        </defs>
         <path id="spBack"  class="sp-strand sp-strand-back"  fill="none"/>
         <path id="spFront" class="sp-strand sp-strand-front" fill="none"/>
+        {{- /* 最后一篇之后线还继续走一段，上面不再有圆点，末端淡出 */ -}}
+        <path id="spTail"  class="sp-strand sp-strand-tail"  fill="none"/>
       </svg>
 
       {{- range $yi, $y := $years }}
@@ -132,8 +141,8 @@ body{ background:#fff; }
   position:relative;
   /* 上下留白，保证首尾节点都能走到视窗中线；
      左边让开钉住的标题，右边让开详情面板 */
-  /* 底部留白要够半屏，「当下」那颗大圆点才能走到视窗中线上 */
-  padding:30vh min(430px,34vw) 54vh min(160px,12vw);
+  /* 底部靠螺旋尾巴撑开（见脚本里的 TAIL），这里只留一点收尾的余量 */
+  padding:30vh min(430px,34vw) 10vh min(160px,12vw);
 }
 .sp-canvas{
   position:relative;
@@ -150,6 +159,8 @@ body{ background:#fff; }
 }
 .sp-strand-front{ stroke:var(--sp-strand);      stroke-width:1.5; }
 .sp-strand-back { stroke:var(--sp-strand-back); stroke-width:1.1; }
+.sp-strand-tail { stroke:url(#spFade); stroke-width:1.5; }
+.sp-fade-stop   { stop-color:var(--sp-strand); }
 
 /* 年份：安静的浅灰刻度 */
 .sp-year{
@@ -257,19 +268,25 @@ body{ background:#fff; }
 @media (max-width:768px){
   .sp-head{ padding-top:1.6rem; }
   .sp-title{ font-size:1.5rem; letter-spacing:.3em; text-indent:.3em; }
-  .sp-stage{ padding:30vh 0 54vh; }
+  .sp-stage{ padding:30vh 0 10vh; }
   .sp-canvas{ width:92vw; }
   .sp-root.ready .sp-cap{ max-width:40vw; font-size:.68rem; }
+  /* 手机上面板压矮一点，别盖掉太多轴线 */
   .sp-panel{
     right:0; left:0; top:auto; bottom:0;
-    width:auto; max-height:46vh; overflow-y:auto;
-    padding:1.2rem 1.3rem calc(1.2rem + env(safe-area-inset-bottom));
+    width:auto; max-height:34vh; overflow-y:auto;
+    padding:.85rem 1.2rem calc(.9rem + env(safe-area-inset-bottom));
     border:none; border-top:1px solid var(--sp-hair); border-radius:14px 14px 0 0;
     transform:translateY(100%);
   }
   .sp-panel.open{ transform:translateY(0); }
-  .sp-p-ex{ -webkit-line-clamp:3; }
-  .sp-p-title{ font-size:1.05rem; }
+  .sp-p-date{ font-size:.66rem; }
+  .sp-p-title{ font-size:.98rem; margin-top:.4rem; }
+  .sp-p-ex{
+    -webkit-line-clamp:2;
+    font-size:.75rem; line-height:1.7; margin-top:.5rem;
+  }
+  .sp-p-go{ margin-top:.85rem; padding:.38rem 1.1rem; font-size:.7rem; }
 }
 
 @media (prefers-reduced-motion: reduce){
@@ -299,6 +316,8 @@ body{ background:#fff; }
   var svg   = document.getElementById('spSvg');
   var pFront= document.getElementById('spFront');
   var pBack = document.getElementById('spBack');
+  var pTail = document.getElementById('spTail');
+  var fade  = document.getElementById('spFade');
   var panel = document.getElementById('spPanel');
   if(!root || !canvas || !panel) return;
 
@@ -325,7 +344,7 @@ body{ background:#fff; }
              top:0, loops:1, loopH:0, turn:0, ry:0, gap:0, lut:null };
   });
 
-  var cx = 0, amp = 0, totalH = 0;
+  var cx = 0, amp = 0, totalH = 0, TAIL = 0, tailT = 1;
 
   /* t：0~1 走完这一年（可能不止一圈） */
   function pointAt(yi, t){
@@ -388,6 +407,17 @@ body{ background:#fff; }
     });
     pFront.setAttribute('d', d[1] || '');
     pBack.setAttribute('d', d['-1'] || '');
+
+    /* 尾巴：最后一篇之后线照着同样的螺旋继续走，上面不放圆点，末端淡出 */
+    var li = years.length - 1;
+    var tsteps = Math.max(40, Math.round(TAIL / 5));
+    var tp = [];
+    for(var k=0; k<=tsteps; k++) tp.push(pointAt(li, 1 + (tailT - 1) * k / tsteps));
+    pTail.setAttribute('d', 'M' + tp.map(function(p){
+      return p.x.toFixed(1) + ',' + p.y.toFixed(1);
+    }).join('L'));
+    fade.setAttribute('y1', tp[0].y.toFixed(1));
+    fade.setAttribute('y2', tp[tp.length-1].y.toFixed(1));
   }
 
   function layout(){
@@ -411,11 +441,16 @@ body{ background:#fff; }
       y += yr.turn;
     });
     totalH = y;
+    /* 尾巴替代原来的大片底部留白：最后一篇之下还能滚半屏多，线一直延伸下去。
+       曲线本身还带着上下鼓起的偏移，画布高度按尾巴真正的落点算，别把末端截掉。 */
+    TAIL = Math.max(320, Math.round(window.innerHeight * 0.55));
+    tailT = 1 + TAIL / years[years.length - 1].turn;
 
-    canvas.style.height = totalH + 'px';
-    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + totalH);
+    var full = Math.ceil(pointAt(years.length - 1, tailT).y) + 2;
+    canvas.style.height = full + 'px';
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + full);
     svg.setAttribute('width', W);
-    svg.setAttribute('height', totalH);
+    svg.setAttribute('height', full);
     buildStrand();
 
     years.forEach(function(yr){
