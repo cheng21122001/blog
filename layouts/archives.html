@@ -7,7 +7,7 @@
 
   <header class="clock-head">
     <h1 class="clock-title">{{ .Title }}</h1>
-    <p class="clock-hint">上下拖动圆弧滑动 · 点击卡片阅读</p>
+    <p class="clock-hint">上下拖动圆弧滑动</p>
   </header>
 
   <div class="dial" id="dial" data-count="{{ len $pages }}">
@@ -130,23 +130,19 @@
   opacity:inherit;
 }
 
-/* ── 详情卡：半透明毛玻璃，不是纯色背景 ── */
+/* ── 详情卡：完全透明，只剩三条边线和文字 ── */
 .dial-detail{
   position:relative; flex:none;
   /* 高度跟着内容走（摘要固定 8 行），不再拉到和圆弧一样高 */
   width:min(36vw, 300px); box-sizing:border-box;
   display:flex; flex-direction:column;
   padding:1.3rem 1.2rem;
-  background:rgba(255,255,255,.78);
+  background:transparent;
   /* 底边不封口：只留上、左、右三条线，让卡片向下敞开 */
   border:1px solid var(--primary); border-bottom:none;
   border-radius:6px 6px 0 0;
-  box-shadow:0 8px 26px rgba(0,0,0,.10);
-  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
   z-index:5;
 }
-:root[data-theme="dark"] .dial-detail{ background:rgba(18,18,18,.72); }
-@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .dial-detail{ background:rgba(18,18,18,.72); } }
 .detail-link{ display:flex; flex-direction:column; gap:.35rem; }
 .detail-no{
   font-size:.6rem; letter-spacing:.15em; color:var(--secondary);
