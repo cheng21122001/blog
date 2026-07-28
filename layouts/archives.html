@@ -3,7 +3,6 @@
 {{- /* 时间正序：最早的在螺旋顶端，最新的在底端 */ -}}
 {{- $pages := (where site.RegularPages "Section" "posts").ByDate }}
 {{- $years := $pages.GroupByDate "2006" "asc" }}
-{{- $latest := first 4 $pages.Reverse }}
 
 <div class="sp-root" id="spRoot">
 
@@ -51,18 +50,6 @@
         {{- end }}
       {{- end }}
 
-      {{- /* 螺旋最底端：当下 */ -}}
-      {{- with $latest }}
-      <a class="sp-node sp-now" id="spNow" href="{{ (index . 0).RelPermalink }}"
-         data-i="{{ $gi }}" data-now="1"
-         data-date="当下"
-         data-title="最新的文章"
-         data-excerpt="">
-        <span class="sp-dot" aria-hidden="true"></span>
-        <span class="sp-cap"><span class="sp-cap-title">当下</span></span>
-      </a>
-      {{- end }}
-
     </div>
   </div>
 </div>
@@ -74,11 +61,6 @@
     <h2 class="sp-p-title" id="spPTitle"></h2>
     <p class="sp-p-ex" id="spPEx"></p>
     <a class="sp-p-go" id="spPGo" href="#">阅读全文</a>
-    <ul class="sp-p-list" id="spPList">
-      {{- range $latest }}
-      <li><a href="{{ .RelPermalink }}"><span>{{ .Date.Format "2006.01.02" }}</span>{{ .Title | plainify | htmlUnescape }}</a></li>
-      {{- end }}
-    </ul>
   </div>
 </aside>
 
@@ -199,8 +181,6 @@ body{ background:#fff; }
 .sp-root.ready .is-m  .sp-dot{ width:11px; height:11px; margin:-5.5px 0 0 -5.5px; }
 /* 加粗实心大圆：深度长文 */
 .sp-root.ready .is-l  .sp-dot{ width:17px; height:17px; margin:-8.5px 0 0 -8.5px; }
-/* 当下 */
-.sp-root.ready .sp-now .sp-dot{ width:24px; height:24px; margin:-12px 0 0 -12px; opacity:.6; }
 
 /* 高亮：放大 + 外圈 */
 .sp-root.ready .sp-node.on .sp-dot{ opacity:1; transform:scale(1.45); }
@@ -211,7 +191,6 @@ body{ background:#fff; }
   opacity:.75;
   animation:sp-ring .32s cubic-bezier(.22,.61,.36,1);
 }
-.sp-root.ready .sp-now.on::before{ width:52px; height:52px; margin:-26px 0 0 -26px; }
 @keyframes sp-ring{ from{ transform:scale(.6); opacity:0 } to{ transform:scale(1); opacity:.75 } }
 
 /* 圆点旁的极简标注：日期 · 标题 */
@@ -229,7 +208,6 @@ body{ background:#fff; }
 .sp-cap-title{ color:var(--sp-ink); font-weight:600; }
 .sp-root.ready .sp-node.side-r .sp-cap{ transform:translate(18px,-.65em); text-align:left; }
 .sp-root.ready .sp-node.side-l .sp-cap{ transform:translate(calc(-100% - 18px),-.65em); text-align:right; }
-.sp-root.ready .sp-now .sp-cap-title{ letter-spacing:.2em; }
 
 /* ── 详情面板 ── */
 .sp-panel{
@@ -266,20 +244,6 @@ body{ background:#fff; }
   transition:background .2s ease, color .2s ease;
 }
 .sp-p-go:hover{ background:var(--sp-ink); color:var(--sp-bg); }
-.sp-p-list{ display:none; margin:1.1rem 0 0; padding:0; list-style:none; }
-.sp-panel.now-mode .sp-p-list{ display:block; }
-.sp-panel.now-mode .sp-p-go,
-.sp-panel.now-mode .sp-p-ex{ display:none; }
-.sp-p-list li + li{ border-top:1px solid var(--sp-hair); }
-.sp-p-list a{
-  display:block; padding:.65rem 0;
-  font-size:.82rem; color:var(--sp-ink); text-decoration:none; font-weight:500;
-}
-.sp-p-list a span{
-  display:block; font-size:.66rem; color:var(--sp-mute); letter-spacing:.1em;
-  margin-bottom:.2rem; font-variant-numeric:tabular-nums;
-}
-.sp-p-list a:hover{ opacity:.6; }
 /* 没有 JS 时不显示面板 */
 .sp-root:not(.ready) ~ .sp-panel{ display:none; }
 
@@ -470,16 +434,9 @@ body{ background:#fff; }
 
     nodes.forEach(function(el){
       var yi = +el.getAttribute('data-yi');
-      var p, reach;
-      if(el.hasAttribute('data-now')){
-        var last = years[years.length - 1];
-        p = { x: cx, y: last.top + last.turn, z: 1 };
-        reach = 240;
-      }else{
-        var yr = years[yi];
-        p = pointAt(yi, tAtOffset(yi, (+el.getAttribute('data-t')) * yr.turn));
-        reach = Math.max(70, yr.gap * 0.8);
-      }
+      var yr = years[yi];
+      var p = pointAt(yi, tAtOffset(yi, (+el.getAttribute('data-t')) * yr.turn));
+      var reach = Math.max(70, yr.gap * 0.8);
       el.style.transform = 'translate(' + p.x.toFixed(1) + 'px,' + p.y.toFixed(1) + 'px)';
       var right = mobile || (p.x >= cx && p.x + 18 + capW <= rightLimit);
       el.classList.toggle('side-r', right);
@@ -500,7 +457,6 @@ body{ background:#fff; }
 
   var current = -1;
   function show(el){
-    panel.classList.toggle('now-mode', el.hasAttribute('data-now'));
     pDate.textContent  = el.getAttribute('data-date');
     pTitle.textContent = el.getAttribute('data-title');
     pEx.textContent    = el.getAttribute('data-excerpt');
