@@ -1,429 +1,576 @@
 {{- define "main" }}
 
-{{- /* 按时间正序：最早的文章编号 01 */ -}}
+{{- /* 时间正序：最早的在螺旋顶端，最新的在底端 */ -}}
 {{- $pages := (where site.RegularPages "Section" "posts").ByDate }}
+{{- $years := $pages.GroupByDate "2006" "asc" }}
+{{- $latest := first 4 $pages.Reverse }}
 
-<div class="clock-page">
+<div class="sp-root" id="spRoot">
 
-  <header class="clock-head">
-    <h1 class="clock-title">{{ .Title }}</h1>
-    <p class="clock-hint">上下拖动圆弧滑动</p>
+  <header class="sp-head">
+    <h1 class="sp-title">{{ .Title }}</h1>
+    <span class="sp-rule" aria-hidden="true"></span>
+    <p class="sp-hint">向下滚动 · 十二篇绕一圈 · 共 {{ len $pages }} 篇</p>
   </header>
 
-  <div class="dial" id="dial" data-count="{{ len $pages }}">
+  <div class="sp-stage" id="spStage">
+    <div class="sp-canvas" id="spCanvas">
 
-    <!-- 左半圆弧：焦点鼓在最左，窗口两端贴近详情卡 -->
-    <div class="arc-wrap" id="arcWrap">
-      <svg class="arc-track" id="arcTrack" viewBox="0 0 1 1" aria-hidden="true">
-        <path d="" fill="none" stroke="var(--border)" stroke-width="1" stroke-dasharray="2 5"/>
+      <svg class="sp-svg" id="spSvg" aria-hidden="true" focusable="false">
+        <path id="spBack"  class="sp-strand sp-strand-back"  fill="none"/>
+        <path id="spFront" class="sp-strand sp-strand-front" fill="none"/>
       </svg>
 
-      <!-- 文章档案卡（真实链接，无 JS 时降级为竖直列表） -->
-      <div class="dial-cards" id="dialCards">
-        {{- range $i, $p := $pages }}
-        {{- /* .Plain 里直引号经过智能排版会变成字面的 "&ldquo;" 文本（不是真的引号字符），
-               模板输出时再转义一次就成了 "&amp;ldquo;"——先 htmlUnescape 转回真字符。 */ -}}
-        {{- $ex := $p.Plain | plainify | chomp | htmlUnescape }}
-        {{- $t := $p.Title | plainify | htmlUnescape }}
-        <a class="card" href="{{ $p.Permalink }}" data-i="{{ $i }}" aria-label="{{ $t }}">
-          <span class="card-no">{{ printf "%02d" (add $i 1) }}</span>
-          <span class="card-label" aria-hidden="true">{{ if gt (len $t) 10 }}{{ substr $t 0 10 }}…{{ else }}{{ $t }}{{ end }}</span>
-          <span class="card-title">{{ $t }}</span>
-          <span class="card-date">{{ $p.Date.Format "2006.01.02" }}</span>
-          <span class="card-excerpt">{{ if gt (len $ex) 400 }}{{ substr $ex 0 400 }}…{{ else }}{{ $ex }}{{ end }}</span>
+      {{- range $yi, $y := $years }}
+      <span class="sp-year" data-count="{{ len $y.Pages }}" data-yi="{{ $yi }}">{{ $y.Key }}</span>
+      {{- end }}
+
+      {{- $gi := 0 }}
+      {{- range $yi, $y := $years }}
+        {{- $ys := $y.Pages.ByDate }}
+        {{- $n := len $ys }}
+        {{- range $pi, $p := $ys }}
+          {{- /* .Plain 经过智能排版后带字面的 "&ldquo;" 文本，先还原成真引号 */ -}}
+          {{- $ex := $p.Plain | plainify | chomp | htmlUnescape }}
+          {{- $t := $p.Title | plainify | htmlUnescape }}
+          {{- $len := strings.CountRunes $ex }}
+          {{- $sz := cond (lt $len 350) "is-s" (cond (ge $len 2000) "is-l" "is-m") }}
+          {{- if $p.Params.pinned }}{{ $sz = "is-l" }}{{ end }}
+        <a class="sp-node {{ $sz }}" href="{{ $p.RelPermalink }}"
+           data-i="{{ $gi }}" data-yi="{{ $yi }}" data-t="{{ printf "%.5f" (div (add (float $pi) 0.5) (float $n)) }}"
+           data-date="{{ $p.Date.Format "2006.01.02" }}"
+           data-title="{{ $t }}"
+           data-excerpt="{{ if gt $len 160 }}{{ substr $ex 0 160 }}…{{ else }}{{ $ex }}{{ end }}">
+          <span class="sp-dot" aria-hidden="true"></span>
+          <span class="sp-cap">
+            <span class="sp-cap-date">{{ $p.Date.Format "2006.01.02" }}</span>
+            <span class="sp-cap-sep" aria-hidden="true">·</span>
+            <span class="sp-cap-title">{{ $t }}</span>
+          </span>
         </a>
+          {{- $gi = add $gi 1 }}
         {{- end }}
-      </div>
-    </div>
+      {{- end }}
 
-    <!-- 详情卡：跟随焦点切换，半透明毛玻璃 -->
-    <div class="dial-detail" id="dialDetail">
-      <a class="detail-link" id="dialDetailLink" href="#">
-        <span class="detail-no"></span>
-        <span class="detail-title"></span>
-        <span class="detail-date"></span>
-        <span class="detail-excerpt"></span>
+      {{- /* 螺旋最底端：当下 */ -}}
+      {{- with $latest }}
+      <a class="sp-node sp-now" id="spNow" href="{{ (index . 0).RelPermalink }}"
+         data-i="{{ $gi }}" data-now="1"
+         data-date="当下"
+         data-title="最新的文章"
+         data-excerpt="螺旋走到这里就是此刻。下面是最近写的几篇。">
+        <span class="sp-dot" aria-hidden="true"></span>
+        <span class="sp-cap"><span class="sp-cap-title">当下</span></span>
       </a>
-    </div>
+      {{- end }}
 
-    <!-- 竖直进度条：越早的文章越靠上 -->
-    <div class="posbar-wrap" id="posbarWrap" title="共 {{ len $pages }} 篇，滑块是当前显示的这一段">
-      <span class="posbar-num" id="rangeLo">1</span>
-      <div class="posbar-track" id="posbarTrack">
-        <div class="posbar-fill" id="posbarFill"></div>
-      </div>
-      <span class="posbar-num" id="rangeHi">{{ len $pages }}</span>
     </div>
-
   </div>
 </div>
 
+{{- /* 详情面板：宽屏从右侧滑入，手机从底部滑出 */ -}}
+<aside class="sp-panel" id="spPanel" aria-live="polite">
+  <div class="sp-panel-in">
+    <p class="sp-p-date" id="spPDate"></p>
+    <h2 class="sp-p-title" id="spPTitle"></h2>
+    <p class="sp-p-ex" id="spPEx"></p>
+    <a class="sp-p-go" id="spPGo" href="#">阅读全文</a>
+    <ul class="sp-p-list" id="spPList">
+      {{- range $latest }}
+      <li><a href="{{ .RelPermalink }}"><span>{{ .Date.Format "2006.01.02" }}</span>{{ .Title | plainify | htmlUnescape }}</a></li>
+      {{- end }}
+    </ul>
+  </div>
+</aside>
+
 <style>
-.clock-page{
-  display:flex; flex-direction:column; align-items:center;
-  padding-top:.5rem;
+/* ── 这一页专属：纯黑白两套配色，跟随站点右上角的主题切换 ── */
+body{ background:#fff; }
+:root[data-theme="dark"] body{ background:#000; }
+
+.sp-root,
+.sp-panel{
+  --sp-bg:#ffffff;
+  --sp-ink:#000000;
+  --sp-mute:#909090;
+  --sp-hair:#dcdcdc;
+  --sp-strand:#bdbdbd;
+  --sp-strand-back:#e6e6e6;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",
+              "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-weight:300;
 }
-.clock-head{ text-align:center; margin-bottom:1.2rem; }
-.clock-title{
-  font-size:1.9rem; font-weight:600; letter-spacing:.35em; text-indent:.35em;
+:root[data-theme="dark"] .sp-root,
+:root[data-theme="dark"] .sp-panel{
+  --sp-bg:#000000;
+  --sp-ink:#ffffff;
+  --sp-mute:#8b8b8b;
+  --sp-hair:#3a3a3a;
+  --sp-strand:#5e5e5e;
+  --sp-strand-back:#303030;
+}
+
+/* 撑满整个视窗宽度（跳出 PaperMod 的 720px 正文栏） */
+.sp-root{
+  position:relative;
+  width:100vw;
+  margin-left:calc(50% - 50vw);
+  overflow-x:clip;
+}
+
+/* ── 标题：钉在左上角不动，螺旋从它身后走过 ── */
+.sp-head{
+  position:sticky; top:0; z-index:6;
+  padding:2.5rem max(6vw,20px) 1.6rem;
+  pointer-events:none;
+  background:linear-gradient(to bottom,
+    var(--sp-bg) 0, var(--sp-bg) 68%, transparent 100%);
+}
+.sp-title{
   margin:0;
+  font-size:clamp(1.5rem,3.2vw,2rem);
+  font-weight:700;
+  letter-spacing:.06em;
+  color:var(--sp-ink);
 }
-.clock-hint{
-  color:var(--secondary); font-size:.82rem; letter-spacing:.12em;
-  margin:.5rem 0 0;
+.sp-rule{
+  display:block; width:64px; height:2px; margin:1.1rem 0 0;
+  background:var(--sp-ink);
 }
+.sp-hint{
+  margin:1.2rem 0 0;
+  font-size:.74rem; letter-spacing:.14em; color:var(--sp-mute);
+  transition:opacity .4s ease;
+}
+/* 滚起来之后提示语淡出，只留标题钉在那儿 */
+.sp-root.scrolled .sp-hint{ opacity:0; }
 
-/* ── 舞台：左半圆 + 详情卡 + 竖直进度条，一行排开 ── */
-.dial{
-  display:flex; flex-direction:row; align-items:center; justify-content:center;
-  gap:1.6rem;
-  width:min(96vw, 900px);
-  margin:2rem auto 3rem;
+/* ── 螺旋舞台 ── */
+.sp-stage{
+  position:relative;
+  /* 上下留白，保证首尾节点都能走到视窗中线；
+     左边让开钉住的标题，右边让开详情面板 */
+  padding:30vh min(430px,34vw) 46vh min(160px,12vw);
 }
-
-.arc-wrap{
-  position:relative; flex:none;
-  width:min(30vw, 260px);
-  height:min(70vh, 560px);
-  touch-action:none; -webkit-user-select:none; user-select:none;
-  cursor:grab;
+.sp-canvas{
+  position:relative;
+  width:min(560px,100%);
+  margin:0 auto;
 }
-.arc-wrap:active{ cursor:grabbing; }
-.arc-track{
-  position:absolute; left:100%; top:50%;
+.sp-svg{
+  position:absolute; left:0; top:0;
   pointer-events:none; overflow:visible;
 }
+.sp-strand{
+  stroke-linecap:round; stroke-linejoin:round;
+  vector-effect:non-scaling-stroke;
+}
+.sp-strand-front{ stroke:var(--sp-strand);      stroke-width:1.5; }
+.sp-strand-back { stroke:var(--sp-strand-back); stroke-width:1.1; }
 
-/* ── 档案卡（转成弧上的节点） ── */
-.dial-cards{ position:absolute; inset:0; }
+/* 年份：安静的浅灰刻度 */
+.sp-year{
+  position:absolute; left:0; top:0;
+  font-size:.68rem; letter-spacing:.22em; color:var(--sp-mute);
+  font-variant-numeric:tabular-nums;
+  pointer-events:none; white-space:nowrap;
+  opacity:.75;
+}
+.sp-root:not(.ready) .sp-year{ display:none; }
 
-.dial.ready .card{
-  position:absolute; left:100%; top:50%;
-  width:32px; height:32px; box-sizing:border-box;
-  display:flex; align-items:center; justify-content:center;
-  padding:0;
-  background:var(--theme);
-  border:1px solid var(--border);
+/* ── 节点：小行星圆点 ── */
+.sp-root.ready .sp-node{
+  position:absolute; left:0; top:0;
+  display:block; width:0; height:0;
+  text-decoration:none;
+}
+.sp-root.ready .sp-dot{
+  position:absolute; left:0; top:0;
+  display:block; box-sizing:border-box;
   border-radius:50%;
-  cursor:pointer;
-  margin:-16px 0 0 -16px;
-  transition:opacity .25s ease, border-color .25s ease, transform .05s linear;
+  background:var(--sp-ink);
+  opacity:.42;
+  transition:transform .28s cubic-bezier(.22,.61,.36,1), opacity .28s ease;
 }
-.dial.ready .card-no{
-  font-size:.62rem; letter-spacing:.05em; color:var(--secondary);
+/* 空心小圆：短句随笔 */
+.sp-root.ready .is-s  .sp-dot{ width:7px;  height:7px;  margin:-3.5px 0 0 -3.5px; background:var(--sp-bg); border:1.4px solid var(--sp-ink); }
+/* 实心中圆：普通随笔 */
+.sp-root.ready .is-m  .sp-dot{ width:11px; height:11px; margin:-5.5px 0 0 -5.5px; }
+/* 加粗实心大圆：深度长文 */
+.sp-root.ready .is-l  .sp-dot{ width:17px; height:17px; margin:-8.5px 0 0 -8.5px; }
+/* 当下 */
+.sp-root.ready .sp-now .sp-dot{ width:24px; height:24px; margin:-12px 0 0 -12px; opacity:.6; }
+
+/* 高亮：放大 + 外圈 */
+.sp-root.ready .sp-node.on .sp-dot{ opacity:1; transform:scale(1.45); }
+.sp-root.ready .sp-node.on::before{
+  content:''; position:absolute; left:0; top:0;
+  width:40px; height:40px; margin:-20px 0 0 -20px;
+  border:1px solid var(--sp-ink); border-radius:50%;
+  opacity:.75;
+  animation:sp-ring .32s cubic-bezier(.22,.61,.36,1);
+}
+.sp-root.ready .sp-now.on::before{ width:52px; height:52px; margin:-26px 0 0 -26px; }
+@keyframes sp-ring{ from{ transform:scale(.6); opacity:0 } to{ transform:scale(1); opacity:.75 } }
+
+/* 圆点旁的极简标注：日期 · 标题 */
+.sp-root.ready .sp-cap{
+  position:absolute; top:0; left:0;
+  display:block; max-width:190px;
+  font-size:.7rem; line-height:1.3; letter-spacing:.02em;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  opacity:.42;
+  transition:opacity .28s ease;
+}
+.sp-root.ready .sp-node.on .sp-cap{ opacity:1; }
+.sp-cap-date{ color:var(--sp-mute); font-variant-numeric:tabular-nums; }
+.sp-cap-sep{ color:var(--sp-mute); margin:0 .3em; }
+.sp-cap-title{ color:var(--sp-ink); font-weight:600; }
+.sp-root.ready .sp-node.side-r .sp-cap{ transform:translate(18px,-.65em); text-align:left; }
+.sp-root.ready .sp-node.side-l .sp-cap{ transform:translate(calc(-100% - 18px),-.65em); text-align:right; }
+.sp-root.ready .sp-now .sp-cap-title{ letter-spacing:.2em; }
+
+/* ── 详情面板 ── */
+.sp-panel{
+  position:fixed; z-index:30;
+  right:max(3vw,18px); top:50%;
+  width:min(340px,34vw);
+  transform:translate(calc(100% + max(3vw,18px)),-50%);
+  padding:1.6rem 1.5rem;
+  background:var(--sp-bg);
+  border:1px solid var(--sp-hair);
+  border-radius:10px;
+  opacity:0; pointer-events:none;
+  transition:transform .45s cubic-bezier(.22,.61,.36,1), opacity .3s ease;
+}
+.sp-panel.open{ transform:translate(0,-50%); opacity:1; pointer-events:auto; }
+.sp-p-date{
+  margin:0; font-size:.72rem; letter-spacing:.14em; color:var(--sp-mute);
   font-variant-numeric:tabular-nums;
 }
-.dial.ready .card-title,
-.dial.ready .card-date,
-.dial.ready .card-excerpt{ display:none; }
+.sp-p-title{
+  margin:.7rem 0 0; font-size:1.15rem; font-weight:700; line-height:1.5;
+  color:var(--sp-ink); letter-spacing:.02em;
+}
+.sp-p-ex{
+  margin:.9rem 0 0; font-size:.8rem; line-height:1.9; color:var(--sp-mute);
+  display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden;
+}
+.sp-p-go{
+  display:inline-block; margin-top:1.4rem;
+  padding:.5rem 1.4rem;
+  font-size:.74rem; letter-spacing:.16em; color:var(--sp-ink);
+  border:1px solid var(--sp-ink); border-radius:999px;
+  text-decoration:none;
+  transition:background .2s ease, color .2s ease;
+}
+.sp-p-go:hover{ background:var(--sp-ink); color:var(--sp-bg); }
+.sp-p-list{ display:none; margin:1.1rem 0 0; padding:0; list-style:none; }
+.sp-panel.now-mode .sp-p-list{ display:block; }
+.sp-panel.now-mode .sp-p-go{ display:none; }
+.sp-p-list li + li{ border-top:1px solid var(--sp-hair); }
+.sp-p-list a{
+  display:block; padding:.65rem 0;
+  font-size:.82rem; color:var(--sp-ink); text-decoration:none; font-weight:500;
+}
+.sp-p-list a span{
+  display:block; font-size:.66rem; color:var(--sp-mute); letter-spacing:.1em;
+  margin-bottom:.2rem; font-variant-numeric:tabular-nums;
+}
+.sp-p-list a:hover{ opacity:.6; }
+/* 没有 JS 时不显示面板 */
+.sp-root:not(.ready) ~ .sp-panel{ display:none; }
 
-.dial.ready .card.focus{ border-color:var(--primary); z-index:5; }
-.dial.ready .card.focus .card-no{ color:var(--primary); }
-.dial.ready .card.focus .card-label{ color:var(--primary); }
-
-/* 卡片旁的标题：一律水平朝左甩出去，永远不会甩到卡片那一侧 */
-.dial.ready .card-label{
-  position:absolute; left:50%; top:50%;
-  transform:translate(calc(-100% - 14px), -50%);
-  font-size:10px; letter-spacing:.02em; color:var(--secondary);
-  white-space:nowrap; pointer-events:none;
-  opacity:inherit;
-}
-
-/* ── 详情卡：完全透明，只剩三条边线和文字 ── */
-.dial-detail{
-  position:relative; flex:none;
-  /* 高度跟着内容走（摘要固定 8 行），不再拉到和圆弧一样高 */
-  width:min(36vw, 300px); box-sizing:border-box;
-  display:flex; flex-direction:column;
-  padding:1.3rem 1.2rem;
-  background:transparent;
-  /* 底边不封口：只留上、左、右三条线，让卡片向下敞开 */
-  border:1px solid var(--primary); border-bottom:none;
-  border-radius:6px 6px 0 0;
-  z-index:5;
-}
-.detail-link{ display:flex; flex-direction:column; gap:.35rem; }
-.detail-no{
-  font-size:.6rem; letter-spacing:.15em; color:var(--secondary);
-  font-variant-numeric:tabular-nums;
-}
-.detail-title{
-  font-size:1.1rem; font-weight:500; color:var(--primary); line-height:1.5;
-  margin-top:.4rem;
-}
-.detail-date{
-  font-size:.68rem; color:var(--secondary); margin-top:.5rem;
-  font-variant-numeric:tabular-nums; letter-spacing:.05em;
-}
-.detail-excerpt{
-  font-size:.8rem; color:var(--secondary); line-height:1.75; margin-top:.8rem;
-  display:-webkit-box; -webkit-line-clamp:8; -webkit-box-orient:vertical;
-  overflow:hidden;
-}
-/* 无 JS 时中央面板无内容，直接隐藏 */
-.dial:not(.ready) .dial-detail{ display:none; }
-
-/* ── 竖直进度条：越早的文章越靠上 ── */
-.posbar-wrap{
-  flex:none; align-self:stretch;
-  display:flex; flex-direction:column; align-items:center;
-  gap:.5rem; padding:.4rem 0;
-  width:36px;
-}
-.posbar-num{
-  font-size:.64rem; color:var(--secondary); font-variant-numeric:tabular-nums; letter-spacing:.02em;
-}
-.posbar-track{
-  position:relative; flex:1; width:3px; background:var(--tertiary); border-radius:2px;
-  cursor:pointer; touch-action:none;
-}
-/* 视觉上还是那条 3px 细线，但可点击/可拖的判定区域横向再宽出去一截，
-   不然这么细一条在手机上根本按不准 */
-.posbar-track::before{
-  content:''; position:absolute; top:0; bottom:0; left:-10px; right:-10px;
-}
-.posbar-fill{
-  position:absolute; left:0; right:0;
-  top:var(--seg-start,0%); height:var(--seg-size,0%);
-  background:var(--primary); border-radius:2px;
-  pointer-events:none;
-  transition:top .05s linear, height .05s linear;
-}
-.dial:not(.ready) .posbar-wrap{ display:none; }
-
-/* 窄屏：还是同一行（弧｜详情卡｜进度条），不摞起来——
-   圆弧和详情卡要在同一屏看到，只把三样都缩小、间距收紧。 */
-@media (max-width:640px){
-  /* 手机上不放详情卡，圆弧独占版面；点节点直接进文章（见脚本里的判断） */
-  .dial{ gap:.8rem; width:98vw; }
-  .dial-detail{ display:none; }
-  .arc-wrap{ width:72vw; height:min(64vh,460px); }
-  .posbar-wrap{ width:22px; }
-  .dial.ready .card{ width:26px; height:26px; margin:-13px 0 0 -13px; }
-  .dial.ready .card-no{ font-size:.58rem; }
-  .dial.ready .card-label{ font-size:10px; transform:translate(calc(-100% - 11px), -50%); }
+/* ── 平板/窄屏 ── */
+@media (max-width:1080px){
+  .sp-panel{ width:min(300px,40vw); padding:1.3rem 1.2rem; }
+  .sp-root.ready .sp-cap{ max-width:150px; font-size:.66rem; }
 }
 
-/* 无 JS 降级：竖直列表 */
-.dial:not(.ready){
-  width:min(100%,560px);
-  display:block; touch-action:auto;
+/* ── 手机竖屏：面板从底部滑出 ── */
+@media (max-width:768px){
+  .sp-head{ padding-top:1.6rem; }
+  .sp-stage{ padding:34vh 0 40vh; }
+  .sp-canvas{ width:92vw; }
+  .sp-root.ready .sp-cap{ max-width:40vw; font-size:.68rem; }
+  .sp-panel{
+    right:0; left:0; top:auto; bottom:0;
+    width:auto; max-height:46vh; overflow-y:auto;
+    padding:1.2rem 1.3rem calc(1.2rem + env(safe-area-inset-bottom));
+    border:none; border-top:1px solid var(--sp-hair); border-radius:14px 14px 0 0;
+    transform:translateY(100%);
+  }
+  .sp-panel.open{ transform:translateY(0); }
+  .sp-p-ex{ -webkit-line-clamp:3; }
+  .sp-p-title{ font-size:1.05rem; }
 }
-.dial:not(.ready) .arc-wrap{
-  position:static; width:auto; height:auto;
-}
-.dial:not(.ready) .arc-track{ display:none; }
-.dial:not(.ready) .dial-cards{ position:static; }
-.dial:not(.ready) .card{
-  display:flex; align-items:baseline; gap:.8rem;
-  padding:.5rem .2rem;
-  border-bottom:1px solid var(--border);
-  margin-bottom:.3rem;
-}
-.dial:not(.ready) .card-title{ font-weight:500; }
-.dial:not(.ready) .card-excerpt,
-.dial:not(.ready) .card-label{ display:none; }
 
 @media (prefers-reduced-motion: reduce){
-  .dial.ready .card, .dial-detail{ transition:none; }
+  .sp-root.ready .sp-dot,
+  .sp-root.ready .sp-cap,
+  .sp-panel{ transition:none; }
+  .sp-root.ready .sp-node.on::before{ animation:none; }
 }
+
+/* ── 无 JS 降级：老老实实一条竖排清单 ── */
+.sp-root:not(.ready) .sp-svg{ display:none; }
+.sp-root:not(.ready) .sp-canvas{ width:min(680px,90vw); padding:2rem 0; }
+.sp-root:not(.ready) .sp-stage{ padding:0 0 3rem; }
+.sp-root:not(.ready) .sp-node{
+  display:block; padding:.7rem 0; border-bottom:1px solid var(--sp-hair);
+  text-decoration:none;
+}
+.sp-root:not(.ready) .sp-dot{ display:none; }
+.sp-root:not(.ready) .sp-cap-date{ margin-right:.6em; }
 </style>
 
 <script>
 (function(){
-  var dial      = document.getElementById('dial');
-  var arcWrap   = document.getElementById('arcWrap');
-  var detail    = document.getElementById('dialDetail');
-  var link      = document.getElementById('dialDetailLink');
-  var arcTrackSvg  = document.getElementById('arcTrack');
-  var arcTrackPath = arcTrackSvg.querySelector('path');
-  var allCards  = Array.prototype.slice.call(document.querySelectorAll('#dialCards .card'));
-  var rangeLo   = document.getElementById('rangeLo');
-  var rangeHi   = document.getElementById('rangeHi');
-  var posbarFill  = document.getElementById('posbarFill');
-  var posbarTrack = document.getElementById('posbarTrack');
-  if(!dial || !arcWrap || !detail || allCards.length === 0) return;
+  var root  = document.getElementById('spRoot');
+  var stage = document.getElementById('spStage');
+  var canvas= document.getElementById('spCanvas');
+  var svg   = document.getElementById('spSvg');
+  var pFront= document.getElementById('spFront');
+  var pBack = document.getElementById('spBack');
+  var panel = document.getElementById('spPanel');
+  if(!root || !canvas || !panel) return;
 
-  var TOTAL = allCards.length;
-  var WINDOW = Math.min(16, TOTAL);
+  var nodes = Array.prototype.slice.call(canvas.querySelectorAll('.sp-node'));
+  var yearEls = Array.prototype.slice.call(canvas.querySelectorAll('.sp-year'));
+  if(!nodes.length) return;
 
-  var dNo    = detail.querySelector('.detail-no');
-  var dTitle = detail.querySelector('.detail-title');
-  var dDate  = detail.querySelector('.detail-date');
-  var dExc   = detail.querySelector('.detail-excerpt');
+  var pDate = document.getElementById('spPDate');
+  var pTitle= document.getElementById('spPTitle');
+  var pEx   = document.getElementById('spPEx');
+  var pGo   = document.getElementById('spPGo');
 
-  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var TAU = Math.PI * 2;
+  var mobile = false;
+  var MIN_TURN = 520, PER_POST = 72;   // 一圈的最小高度 / 每篇再撑开多少
+  var BULGE = 0.62;                    // 竖直方向的鼓起，必须 <1 才能保证 y 单调递增
 
-  var ARC_SPAN = 179; // 真半圆是 180，留 1° 余量避开部分浏览器对整 180° 弧的渲染毛病
-  var R = 250;
-  var CENTER_I = (WINDOW - 1) / 2;
-  var windowStart = (TOTAL - 1) - CENTER_I; // 初始：焦点 = 最新一篇
-  var target = windowStart;
+  /* 每 12 篇绕一圈：文章多的年份自动多绕几圈，年份靠旁边的年份标记区分。
+     （填 0 就变回严格的"一年一圈"，写得多的年份会被拉成一条很缓的长弧。） */
+  var PER_LOOP = 12;
 
-  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+  var years = yearEls.map(function(el){
+    return { el: el, count: +el.getAttribute('data-count') || 1,
+             top:0, loops:1, loopH:0, turn:0, ry:0, gap:0, lut:null };
+  });
 
-  /* 左半圆：窗口两端（i=0/WINDOW-1）贴在锚点附近（x≈0，挨着详情卡），
-     焦点（窗口正中）鼓到最左边（x=-R）——半径跟着容器高度走，窄屏不会把弧撑出屏幕。 */
-  function syncRadius(){
-    R = Math.min(250, arcWrap.clientHeight * 0.42);
-    var half = (ARC_SPAN/2) * Math.PI/180;
-    var ye = R * Math.sin(half);
-    var xe = -R * Math.cos(half);
-    var pad = 20;
-    var minX = -R - pad, minY = -ye - pad;
-    var w = (xe - minX) + pad, h = 2*ye + pad*2;
-    arcTrackSvg.setAttribute('viewBox', minX + ' ' + minY + ' ' + w + ' ' + h);
-    arcTrackSvg.style.width = w + 'px';
-    arcTrackSvg.style.height = h + 'px';
-    arcTrackSvg.style.transform = 'translate(' + minX + 'px,' + minY + 'px)';
-    arcTrackPath.setAttribute('d', 'M ' + xe.toFixed(2) + ',' + (-ye).toFixed(2) +
-      ' A ' + R.toFixed(2) + ',' + R.toFixed(2) + ' 0 0,1 ' + xe.toFixed(2) + ',' + ye.toFixed(2));
+  var cx = 0, amp = 0, totalH = 0;
+
+  /* t：0~1 走完这一年（可能不止一圈） */
+  function pointAt(yi, t){
+    var y = years[yi];
+    var th = TAU * y.loops * t;
+    return {
+      x: cx + amp * Math.sin(th),
+      y: y.top + t * y.turn + y.ry * (1 - Math.cos(th)),
+      z: Math.cos(th)
+    };
   }
 
-  var lastFocusGlobal = -1;
-  function updateDetail(globalIdx){
-    if(globalIdx === lastFocusGlobal) return;
-    lastFocusGlobal = globalIdx;
-    var c = allCards[globalIdx];
-    link.setAttribute('href', c.getAttribute('href'));
-    dNo.textContent    = c.querySelector('.card-no').textContent;
-    dTitle.textContent = c.querySelector('.card-title').textContent;
-    dDate.textContent  = c.querySelector('.card-date').textContent;
-    dExc.textContent   = c.querySelector('.card-excerpt').textContent;
-  }
-
-  /* 每次渲染前全部先隐藏，再只把这一轮窗口用到的卡片显示出来并摆好位置——
-     这样卡片元素本身循环复用，不需要额外的"槽位"数据结构。 */
-  function render(){
-    windowStart = clamp(windowStart, 0 - CENTER_I, (TOTAL - 1) - CENTER_I);
-    var focusGlobal = Math.round(windowStart + CENTER_I);
-    var step = ARC_SPAN / (WINDOW - 1);
-
-    allCards.forEach(function(c){ c.style.display = 'none'; });
-
-    for(var i=0;i<WINDOW;i++){
-      var globalIdx = Math.round(windowStart) + i;
-      if(globalIdx < 0 || globalIdx >= TOTAL) continue;
-      var t = step * (i - CENTER_I);
-      var rad = t * Math.PI/180;
-      var x = -R * Math.cos(rad);
-      var y = R * Math.sin(rad);
-      var isFocus = (globalIdx === focusGlobal);
-
-      var el = allCards[globalIdx];
-      el.style.display = '';
-      el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
-      el.style.opacity = isFocus ? 1 : Math.max(.18, 1 - Math.abs(t)/(ARC_SPAN*0.62));
-      el.style.zIndex = isFocus ? 5 : 1;
-      el.classList.toggle('focus', isFocus);
+  /* 圆圈鼓起来的地方走得快、瘪下去的地方走得慢，直接按角度均分的话
+     圆点在竖直方向就会忽疏忽密。这里反过来：先均分竖直距离，再回推角度。 */
+  function buildLut(yr){
+    var n = 96 * yr.loops;
+    var a = new Float64Array(n + 1);
+    for(var i=0;i<=n;i++){
+      var th = TAU * yr.loops * i / n;
+      a[i] = (i/n) * yr.turn + yr.ry * (1 - Math.cos(th));
     }
-
-    updateDetail(focusGlobal);
-
-    var loShown = Math.max(1, Math.round(windowStart) + 1);
-    var hiShown = Math.min(TOTAL, Math.round(windowStart) + WINDOW);
-    rangeLo.textContent = loShown;
-    rangeHi.textContent = hiShown;
-    var barLeft = clamp(windowStart, 0, TOTAL - WINDOW);
-    /* 只写两个自定义属性，竖排/横排（手机断点）分别映射成 top+height 或 left+width，
-       具体用哪套由 CSS 决定，这里不用关心断点。 */
-    posbarFill.style.setProperty('--seg-start', ((barLeft/TOTAL) * 100).toFixed(2) + '%');
-    posbarFill.style.setProperty('--seg-size', ((WINDOW/TOTAL)*100).toFixed(2) + '%');
+    yr.lut = a;
+  }
+  function tAtOffset(yi, dy){
+    var a = years[yi].lut, n = a.length - 1, lo = 0, hi = n;
+    while(lo < hi){
+      var m = (lo + hi) >> 1;
+      if(a[m] < dy) lo = m + 1; else hi = m;
+    }
+    if(lo === 0) return 0;
+    var span = a[lo] - a[lo-1];
+    var frac = span > 0 ? (dy - a[lo-1]) / span : 0;
+    return (lo - 1 + frac) / n;
   }
 
-  /* 点击卡片时的缓动动画：把窗口滑到让它成为焦点，不直接跳转 */
-  var raf = null;
-  function animate(){
-    windowStart += (target - windowStart) * 0.22;
-    if(Math.abs(target - windowStart) < 0.02){ windowStart = target; render(); raf = null; return; }
-    render();
-    raf = requestAnimationFrame(animate);
-  }
-  function animateTo(t){
-    target = clamp(t, 0 - CENTER_I, (TOTAL - 1) - CENTER_I);
-    if(reduce){ windowStart = target; render(); return; }
-    if(!raf) raf = requestAnimationFrame(animate);
-  }
-
-  dial.classList.add('ready');
-  syncRadius();
-  target = windowStart;
-  render();
-  window.addEventListener('resize', function(){ syncRadius(); render(); });
-
-  /* 滚轮：一次滑一点 */
-  arcWrap.addEventListener('wheel', function(e){
-    e.preventDefault();
-    if(raf){ cancelAnimationFrame(raf); raf = null; }
-    windowStart += (e.deltaY > 0 ? 1 : -1) * 0.6;
-    target = windowStart;
-    render();
-  }, {passive:false});
-
-  /* 拖拽：竖直方向，上下拖多少就滑多少 */
-  var dragging = false, lastY = 0, moved = 0;
-  arcWrap.addEventListener('pointerdown', function(e){
-    dragging = true; moved = 0; lastY = e.clientY;
-    if(raf){ cancelAnimationFrame(raf); raf = null; }
-    arcWrap.setPointerCapture(e.pointerId);
-  });
-  arcWrap.addEventListener('pointermove', function(e){
-    if(!dragging) return;
-    var dy = e.clientY - lastY;
-    /* 触屏手感是"内容跟着手指走"，和鼠标拖拽的方向感觉正好相反，分开处理 */
-    var sign = (e.pointerType === 'touch') ? -1 : 1;
-    windowStart += sign * dy * 0.045;
-    target = windowStart;
-    lastY = e.clientY;
-    moved += Math.abs(dy);
-    render();
-  });
-  function endDrag(){ dragging = false; }
-  arcWrap.addEventListener('pointerup', endDrag);
-  arcWrap.addEventListener('pointercancel', endDrag);
-
-  /* 进度条本身也能直接拖：按住/拖到哪，窗口起点就跳到全部文章里对应的那个位置。 */
-  var barDragging = false;
-  function windowStartFromTrackY(clientY){
-    var r = posbarTrack.getBoundingClientRect();
-    var frac = clamp((clientY - r.top) / r.height, 0, 1);
-    return frac * (TOTAL - WINDOW);
-  }
-  posbarTrack.addEventListener('pointerdown', function(e){
-    barDragging = true;
-    if(raf){ cancelAnimationFrame(raf); raf = null; }
-    windowStart = windowStartFromTrackY(e.clientY);
-    target = windowStart;
-    render();
-    posbarTrack.setPointerCapture(e.pointerId);
-  });
-  posbarTrack.addEventListener('pointermove', function(e){
-    if(!barDragging) return;
-    windowStart = windowStartFromTrackY(e.clientY);
-    target = windowStart;
-    render();
-  });
-  function endBarDrag(){ barDragging = false; }
-  posbarTrack.addEventListener('pointerup', endBarDrag);
-  posbarTrack.addEventListener('pointercancel', endBarDrag);
-
-  /* 点击环上节点：滑到让它成为焦点，不直接跳转（阅读入口是详情卡）。
-     e.detail === 0 表示键盘触发，此时放行原生跳转以保证可访问性。 */
-  allCards.forEach(function(c, i){
-    c.addEventListener('click', function(e){
-      if(e.detail === 0) return;
-      /* 手机上详情卡被隐藏了，没有别的阅读入口，直接放行原生跳转；
-         桌面端仍是"点节点只把它转到焦点，读文章走详情卡"。 */
-      if(detail.offsetParent === null){
-        if(moved > 6) e.preventDefault();
-        return;
+  function buildStrand(){
+    /* 按"离观者远近"把线拆成前后两条：远的那半更淡，看起来才像一根盘着的线 */
+    var runs = [], cur = null, prevSign = null;
+    for(var yi=0; yi<years.length; yi++){
+      var steps = Math.max(90 * years[yi].loops, Math.round(years[yi].turn / 5));
+      for(var s=0; s<=steps; s++){
+        if(yi > 0 && s === 0) continue;          // 与上一圈的末点重合，跳过
+        var p = pointAt(yi, s/steps);
+        var sign = p.z >= 0 ? 1 : -1;
+        if(sign !== prevSign){
+          if(cur) cur.pts.push(p);               // 让前后两段在交界处接上，不留缝
+          cur = { sign: sign, pts: [] };
+          runs.push(cur);
+          prevSign = sign;
+        }
+        cur.pts.push(p);
       }
-      e.preventDefault();
-      if(moved > 6) return;
-      animateTo(i - CENTER_I);
+    }
+    var d = { 1:'', '-1':'' };
+    runs.forEach(function(r){
+      if(r.pts.length < 2) return;
+      d[r.sign] += 'M' + r.pts.map(function(p){
+        return p.x.toFixed(1) + ',' + p.y.toFixed(1);
+      }).join('L');
+    });
+    pFront.setAttribute('d', d[1] || '');
+    pBack.setAttribute('d', d['-1'] || '');
+  }
+
+  function layout(){
+    mobile = window.matchMedia('(max-width:768px)').matches;
+    MIN_TURN = mobile ? 440 : 520;
+    PER_POST = mobile ? 60 : 72;
+
+    var W = canvas.clientWidth;
+    if(mobile){ amp = Math.min(96, W * 0.24); cx = Math.max(amp + 20, W * 0.29); }
+    else      { amp = Math.min(185, W * 0.34); cx = W / 2; }
+
+    var y = 0;
+    years.forEach(function(yr){
+      yr.loops = PER_LOOP > 0 ? Math.max(1, Math.ceil(yr.count / PER_LOOP)) : 1;
+      yr.turn  = Math.max(MIN_TURN * yr.loops, yr.count * PER_POST);
+      yr.loopH = yr.turn / yr.loops;
+      yr.top   = y;
+      yr.ry    = BULGE * yr.loopH / TAU;
+      yr.gap   = yr.turn / yr.count;              // 这一年里两篇之间的竖直间距
+      buildLut(yr);
+      y += yr.turn;
+    });
+    totalH = y;
+
+    canvas.style.height = totalH + 'px';
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + totalH);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', totalH);
+    buildStrand();
+
+    years.forEach(function(yr){
+      var p = pointAt(years.indexOf(yr), 0);
+      yr.el.style.transform = 'translate(' +
+        (mobile ? 0 : Math.max(0, p.x - amp - 52)) + 'px,' + (p.y - 8) + 'px)';
+    });
+
+    /* 标注默认甩向圆点外侧，但右侧不能顶到详情面板上——
+       算出面板左边缘，放不下就改甩到左边。 */
+    var capW = parseFloat(getComputedStyle(nodes[0].querySelector('.sp-cap')).maxWidth) || 190;
+    var vw = document.documentElement.clientWidth;
+    var panelW = vw <= 1080 ? Math.min(300, vw * 0.40) : Math.min(340, vw * 0.34);
+    var rightLimit = mobile ? Infinity
+      : vw - panelW - Math.max(vw * 0.03, 18) - 14 - canvas.getBoundingClientRect().left;
+
+    nodes.forEach(function(el){
+      var yi = +el.getAttribute('data-yi');
+      var p, reach;
+      if(el.hasAttribute('data-now')){
+        var last = years[years.length - 1];
+        p = { x: cx, y: last.top + last.turn, z: 1 };
+        reach = 240;
+      }else{
+        var yr = years[yi];
+        p = pointAt(yi, tAtOffset(yi, (+el.getAttribute('data-t')) * yr.turn));
+        reach = Math.max(70, yr.gap * 0.8);
+      }
+      el.style.transform = 'translate(' + p.x.toFixed(1) + 'px,' + p.y.toFixed(1) + 'px)';
+      var right = mobile || (p.x >= cx && p.x + 18 + capW <= rightLimit);
+      el.classList.toggle('side-r', right);
+      el.classList.toggle('side-l', !right);
+      el._y = p.y;
+      el._reach = reach;
+    });
+
+    measure();
+  }
+
+  /* 节点在整份文档里的绝对纵坐标，滚动时拿它和视窗中线比 */
+  var canvasTop = 0;
+  function measure(){
+    canvasTop = canvas.getBoundingClientRect().top + window.pageYOffset;
+    nodes.forEach(function(el){ el._doc = canvasTop + el._y; });
+  }
+
+  var current = -1;
+  function show(el){
+    panel.classList.toggle('now-mode', el.hasAttribute('data-now'));
+    pDate.textContent  = el.getAttribute('data-date');
+    pTitle.textContent = el.getAttribute('data-title');
+    pEx.textContent    = el.getAttribute('data-excerpt');
+    pGo.setAttribute('href', el.getAttribute('href'));
+    panel.classList.add('open');
+  }
+
+  function update(){
+    var mid = window.pageYOffset + window.innerHeight / 2;
+    root.classList.toggle('scrolled', window.pageYOffset > 160);
+
+    /* 节点按纵坐标天然有序，二分找离中线最近的那个 */
+    var lo = 0, hi = nodes.length - 1;
+    while(lo < hi){
+      var m = (lo + hi) >> 1;
+      if(nodes[m]._doc < mid) lo = m + 1; else hi = m;
+    }
+    var best = lo;
+    if(lo > 0 && Math.abs(nodes[lo-1]._doc - mid) < Math.abs(nodes[lo]._doc - mid)) best = lo - 1;
+
+    var el = nodes[best];
+    var hit = Math.abs(el._doc - mid) <= el._reach;
+
+    if(!hit){
+      if(current !== -1){
+        nodes[current].classList.remove('on');
+        current = -1;
+        panel.classList.remove('open');
+      }
+      return;
+    }
+    if(best === current) return;
+    if(current !== -1) nodes[current].classList.remove('on');
+    current = best;
+    el.classList.add('on');
+    show(el);
+  }
+
+  var ticking = false;
+  function onScroll(){
+    if(ticking) return;
+    ticking = true;
+    requestAnimationFrame(function(){ ticking = false; update(); });
+  }
+
+  /* 键盘 Tab 到某个节点时，同样把它点亮并推出面板 */
+  nodes.forEach(function(el, i){
+    el.addEventListener('focus', function(){
+      if(current === i) return;
+      if(current !== -1) nodes[current].classList.remove('on');
+      current = i;
+      el.classList.add('on');
+      show(el);
     });
   });
+
+  root.classList.add('ready');
+  layout();
+  update();
+
+  window.addEventListener('scroll', onScroll, { passive:true });
+  var rt = null;
+  window.addEventListener('resize', function(){
+    clearTimeout(rt);
+    rt = setTimeout(function(){
+      /* 只把 current 清掉不够，高亮的 class 也得一起摘，
+         否则换屏幕尺寸之后会留下一个永远亮着的圆点 */
+      if(current !== -1){ nodes[current].classList.remove('on'); current = -1; }
+      layout();
+      update();
+    }, 120);
+  });
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
 })();
 </script>
 
