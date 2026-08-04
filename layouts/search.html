@@ -25,10 +25,14 @@
     <h1 class="search-title">Search</h1>
   </header>
 
+  {{- /* #searchbox 只当容器（键盘上下键要靠它判断焦点在不在搜索区里），
+         椭圆边框挪到里面的 .searchfield 上，这样出结果时搜索框不会被撑大 */ -}}
   <div id="searchbox" class="searchbox">
-    <input id="searchInput"
-      placeholder="{{ .Params.placeholder | default "输入关键词，回车检索…" }}"
-      aria-label="search" type="search" autocomplete="off" maxlength="64">
+    <div class="searchfield">
+      <input id="searchInput"
+        placeholder="{{ .Params.placeholder | default "输入关键词，回车检索…" }}"
+        aria-label="search" type="search" autocomplete="off" maxlength="64">
+    </div>
     <ul id="searchResults" class="searchResults" aria-label="search results"></ul>
   </div>
 </div>
@@ -56,24 +60,27 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
   color:var(--secondary); font-size:.82rem; letter-spacing:.2em; margin:.5rem 0 0;
 }
 
-/* 搜索框浮在词雨之上，实底保证可读 */
+/* 容器本身不画边框，搜出多少条都不影响上面那颗椭圆 */
 .searchbox{
   width:min(90vw, 460px);
+}
+/* 搜索框浮在词雨之上，实底保证可读；高度固定，不随结果变化 */
+.searchfield{
   background:var(--theme);
   border:1px solid var(--primary);
   border-radius:999px;
   padding:.2rem;
   box-shadow:0 8px 30px rgba(0,0,0,.10);
 }
-.searchbox input{
+.searchfield input{
   width:100%; box-sizing:border-box;
   border:none; outline:none; background:transparent;
   color:var(--primary);
   padding:.7rem 1.3rem; font-size:1rem; letter-spacing:.05em;
 }
 .searchResults{
-  list-style:none; margin:.8rem 0 0; padding:0;
-  width:min(90vw,460px);
+  list-style:none; margin:.9rem 0 0; padding:0;
+  width:100%;
 }
 .searchResults li{
   position:relative;
