@@ -10,7 +10,7 @@
 <div class="tp-root{{ if $photo }} has-photo{{ end }}" id="tpRoot">
 
   {{- if $photo }}
-  {{- /* 中空的鸟画一次，弹出来的那些全部 <use> 复用 */ -}}
+  {{- /* 中空的鸟画一次，四只全部 <use> 复用 */ -}}
   <svg class="tp-defs" width="0" height="0" aria-hidden="true" focusable="false">
     <symbol id="tpBird" viewBox="0 0 130 78">
       <path d="M7,23 L20,18
@@ -32,14 +32,13 @@
       <span class="tp-rule" aria-hidden="true"></span>
     </header>
 
+    {{- /* 有标签的那几只鸟，直接换成中空的，肚子里写着标签名 */ -}}
     <div class="tp-spots" id="tpSpots">
       {{- range $i, $t := $terms }}
       <a class="tp-spot" href="{{ $t.Page.RelPermalink }}" data-i="{{ $i }}"
          aria-label="{{ $t.Page.Title }}（{{ $t.Count }} 篇）">
-        <span class="tp-pop">
-          <svg class="tp-pop-bird" viewBox="0 0 130 78" aria-hidden="true" focusable="false"><use href="#tpBird"/></svg>
-          <span class="tp-pop-name">{{ $t.Page.Title }}</span>
-        </span>
+        <svg class="tp-spot-bird" viewBox="0 0 130 78" aria-hidden="true" focusable="false"><use href="#tpBird"/></svg>
+        <span class="tp-name">{{ $t.Page.Title }}</span>
       </a>
       {{- end }}
     </div>
@@ -86,12 +85,29 @@ body{ background:#fff; }
   --tp-mute:#8b8b8b;
 }
 
-/* ── 照片：铺满整屏，四边化开，不留边框感 ── */
+/* ── 照片：铺满整屏，天空抠掉，只剩杆、线、鸟 ── */
 .tp-photo{
   position:relative;
   width:100vw; margin-left:calc(50% - 50vw);
   height:100vh; height:100svh;
   overflow:hidden;
+}
+.tp-img{
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  object-fit:cover; object-position:50% 46%;
+  -webkit-user-select:none; user-select:none;
+  /* 先把天空推到纯白，再用 multiply 让它彻底透明——底下是什么颜色就是什么颜色 */
+  filter:brightness(1.12) contrast(1.28);
+  mix-blend-mode:multiply;
+  /* 底边化开，杆子不要被硬生生切一刀 */
+  -webkit-mask-image:linear-gradient(to bottom, #000 68%, transparent 100%);
+          mask-image:linear-gradient(to bottom, #000 68%, transparent 100%);
+}
+/* 深色：提亮后整张反过来，天空成纯黑，再用 screen 抠掉 */
+:root[data-theme="dark"] .tp-img{
+  filter:brightness(1.12) contrast(1.28) invert(1);
+  mix-blend-mode:screen;
 }
 /* 标题那一带的电线太满，用一层天空色把上面三分之一化掉 */
 .tp-photo::before{
@@ -99,27 +115,11 @@ body{ background:#fff; }
   background:linear-gradient(to bottom,
     var(--tp-sky) 0%, var(--tp-sky) 15%, transparent 38%);
 }
-.tp-img{
-  position:absolute; inset:0;
-  width:100%; height:100%;
-  object-fit:cover; object-position:50% 46%;
-  -webkit-user-select:none; user-select:none;
-  /* 先把天空提到接近纯白，再用径向遮罩把四边化进页面底色里 */
-  filter:brightness(1.05) contrast(1.06);
-  mix-blend-mode:multiply;
-  -webkit-mask-image:radial-gradient(125% 96% at 50% 46%, #000 52%, transparent 100%);
-          mask-image:radial-gradient(125% 96% at 50% 46%, #000 52%, transparent 100%);
-}
-/* 深色：先提亮再整张反过来，天空就成了纯黑，鸟和杆变白 */
-:root[data-theme="dark"] .tp-img{
-  filter:brightness(1.05) contrast(1.06) invert(1);
-  mix-blend-mode:screen;
-}
 .tp-defs{ position:absolute; width:0; height:0; overflow:hidden; }
 
 /* ── 标题浮在天空上 ── */
 .tp-head{
-  position:absolute; left:0; right:0; top:clamp(5rem,12vh,9rem); z-index:3;
+  position:absolute; left:0; right:0; top:clamp(5rem,12vh,9rem); z-index:4;
   text-align:center; pointer-events:none;
 }
 .tp-head-plain{ position:static; padding:3rem 0 0; }
@@ -134,54 +134,46 @@ body{ background:#fff; }
   background:var(--tp-ink);
 }
 
-/* ── 每只有标签的鸟身上盖一块热区（位置由脚本按图片实际落点算） ── */
+/* ── 有标签的鸟：中空，肚子里写字，点一下就进去 ── */
 .tp-spots{ position:relative; z-index:5; }
 .tp-spot{
   position:absolute;
   transform:translate(-50%,-50%);
-  border-radius:50%;
-  text-decoration:none;
-  -webkit-tap-highlight-color:transparent;
-}
-
-/* ── 扫过去弹出来的中空鸟 ── */
-.tp-pop{
-  position:absolute; left:50%; bottom:60%;
-  width:var(--pop-w,132px); height:calc(var(--pop-w,132px) * .6);
-  transform:translate(-50%,8px) scale(.88);
-  transform-origin:50% 100%;
-  opacity:0; pointer-events:none;
-  transition:opacity .22s ease, transform .3s cubic-bezier(.22,.9,.3,1.12);
+  display:block; text-decoration:none;
   color:var(--tp-ink);
+  -webkit-tap-highlight-color:transparent;
+  cursor:pointer;
 }
-.tp-spot.is-below .tp-pop{
-  bottom:auto; top:60%;
-  transform:translate(-50%,-8px) scale(.88);
-  transform-origin:50% 0;
+/* 判定区往外再放宽一圈，手指和鼠标都好按 */
+.tp-spot::after{
+  content:''; position:absolute; inset:-14%;
 }
-.tp-pop-bird{
+.tp-spot-bird{
   display:block; width:100%; height:100%;
-  fill:var(--tp-sky); fill-opacity:.9;
+  fill:var(--tp-sky);
   stroke:currentColor; stroke-width:2;
   stroke-linejoin:round;
   vector-effect:non-scaling-stroke;
+  transition:fill .2s ease;
 }
-.tp-spot.is-flipped .tp-pop-bird{ transform:scaleX(-1); }
-.tp-pop-name{
+.tp-spot.is-flipped .tp-spot-bird{ transform:scaleX(-1); }
+.tp-name{
   position:absolute; left:38%; top:47%;
   transform:translate(-50%,-50%);
-  font-size:calc(var(--pop-w,132px) * .105);
+  font-size:calc(var(--bird-w,120px) * .108);
   font-weight:600; letter-spacing:.02em;
   color:var(--tp-ink); white-space:nowrap;
+  pointer-events:none;
+  transition:color .2s ease;
 }
-.tp-spot.is-flipped .tp-pop-name{ left:60%; }
-
-.tp-spot:hover .tp-pop,
-.tp-spot:focus-visible .tp-pop,
-.tp-spot.is-open .tp-pop,
-.tp-spot.is-hint .tp-pop{
-  opacity:1; transform:translate(-50%,0) scale(1);
-}
+.tp-spot.is-flipped .tp-name{ left:60%; }
+/* 碰一下就填实，像原本那些黑鸟 */
+.tp-spot:hover .tp-spot-bird,
+.tp-spot:focus-visible .tp-spot-bird,
+.tp-spot:active .tp-spot-bird{ fill:var(--tp-ink); }
+.tp-spot:hover .tp-name,
+.tp-spot:focus-visible .tp-name,
+.tp-spot:active .tp-name{ color:var(--tp-sky); }
 
 @media (max-width:768px){
   .tp-head{ top:clamp(4rem,9vh,6rem); }
@@ -189,7 +181,7 @@ body{ background:#fff; }
 }
 
 @media (prefers-reduced-motion: reduce){
-  .tp-pop{ transition:none; }
+  .tp-spot-bird,.tp-name{ transition:none; }
 }
 
 /* ── 底下那排文字标签：兜底，也方便键盘和搜索引擎 ── */
@@ -224,24 +216,24 @@ body{ background:#fff; }
   if(!photo || !img || !spots.length) return;
 
   /* ── 原图里每只鸟的位置，按原图宽高的百分比记 ──
-     x/y 是鸟身体中心，flip=1 表示这只鸟头朝右（弹出的中空鸟跟着朝右）。
-     想微调就改这张表，别的都不用动。 */
+     排在前面的先被标签认领，所以这几只挑的是彼此隔得最开的。
+     x/y 是鸟身体中心，flip=1 表示这只鸟头朝右。想微调就改这张表。 */
   var SPOTS = [
     { x: 37.3, y: 50.5, flip: 0 },   // 左边单独站在电线上、朝左的那只
-    { x: 66.3, y: 54.9, flip: 1 },   // 最右边那只
     { x: 47.2, y: 45.2, flip: 1 },   // 杆顶左
-    { x: 60.2, y: 53.1, flip: 1 },   // 右下角那只
-    { x: 51.7, y: 44.8, flip: 1 },   // 杆顶右
+    { x: 57.1, y: 52.8, flip: 1 },   // 杆子右边那组里靠外的
+    { x: 66.3, y: 54.9, flip: 1 },   // 最右边那只
+    { x: 51.7, y: 44.8, flip: 1 },
     { x: 41.7, y: 50.0, flip: 0 },
     { x: 44.3, y: 49.8, flip: 0 },
     { x: 51.1, y: 49.4, flip: 1 },
     { x: 54.6, y: 49.7, flip: 1 },
-    { x: 53.8, y: 53.1, flip: 1 },
-    { x: 57.1, y: 52.8, flip: 1 }
+    { x: 60.2, y: 53.1, flip: 1 },
+    { x: 53.8, y: 53.1, flip: 1 }
   ];
 
   /* 图是 object-fit:cover 铺的，两边会被裁掉，
-     所以热区不能按容器百分比放，得先算出图真正画在哪 */
+     所以中空鸟不能按容器百分比放，得先算出图真正画在哪 */
   function place(){
     var nw = img.naturalWidth || 1200, nh = img.naturalHeight || 1600;
     var W = photo.clientWidth, H = photo.clientHeight;
@@ -251,20 +243,18 @@ body{ background:#fff; }
     var dw = nw * scale, dh = nh * scale;
     var ox = (W - dw) / 2, oy = (H - dh) * 0.46;   // 和 CSS 里的 object-position 对齐
 
-    var popW = Math.round(Math.min(210, Math.max(100, dw * 0.115)));
-    var hit  = Math.round(Math.max(34, dw * 0.055));
+    /* 中空鸟要盖得住照片里那只黑鸟，又要装得下标签名 */
+    var bw = Math.round(Math.min(190, Math.max(96, dw * 0.092)));
+    var bh = Math.round(bw * 78 / 130);
 
     spots.forEach(function(el, i){
       var s = SPOTS[i % SPOTS.length];
-      var x = ox + dw * s.x / 100;
-      var y = oy + dh * s.y / 100;
-      el.style.left   = x.toFixed(1) + 'px';
-      el.style.top    = y.toFixed(1) + 'px';
-      el.style.width  = hit + 'px';
-      el.style.height = Math.round(hit * 0.8) + 'px';
-      el.style.setProperty('--pop-w', popW + 'px');
+      el.style.left   = (ox + dw * s.x / 100).toFixed(1) + 'px';
+      el.style.top    = (oy + dh * s.y / 100).toFixed(1) + 'px';
+      el.style.width  = bw + 'px';
+      el.style.height = bh + 'px';
+      el.style.setProperty('--bird-w', bw + 'px');
       el.classList.toggle('is-flipped', !!s.flip);
-      el.classList.toggle('is-below', y < popW * 0.75);
     });
   }
 
@@ -274,32 +264,6 @@ body{ background:#fff; }
   window.addEventListener('resize', function(){
     clearTimeout(rt); rt = setTimeout(place, 100);
   });
-
-  /* 触屏没有 hover：第一下点出中空鸟，再点一下才进标签页 */
-  if(window.matchMedia('(hover:none)').matches){
-    spots.forEach(function(el){
-      el.addEventListener('click', function(e){
-        if(el.classList.contains('is-open')) return;      // 已经开着，放行跳转
-        e.preventDefault();
-        spots.forEach(function(o){ o.classList.remove('is-open'); });
-        el.classList.add('is-open');
-      });
-    });
-    document.addEventListener('click', function(e){
-      if(e.target.closest && e.target.closest('.tp-spot')) return;
-      spots.forEach(function(o){ o.classList.remove('is-open'); });
-    });
-  }
-
-  /* 进页面先挨个亮一遍，不然没人知道鸟身上还藏着东西 */
-  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-    spots.forEach(function(el, i){
-      setTimeout(function(){
-        el.classList.add('is-hint');
-        setTimeout(function(){ el.classList.remove('is-hint'); }, 620);
-      }, 600 + i * 680);
-    });
-  }
 })();
 </script>
 {{- end }}
