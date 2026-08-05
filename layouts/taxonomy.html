@@ -6,23 +6,36 @@
        竖屏切左右，所以带标签的四块都放在中间那块横竖都切不到的地方。
        tx 是标签名从框左边起算的位置（按框宽的比例）。 */ -}}
 {{- $slots := slice
-  (dict "cx"  810 "cy"  545 "rot" -14 "tx" 0.22)
-  (dict "cx" 1265 "cy"  650 "rot"  10 "tx" 0.22)
-  (dict "cx"  815 "cy"  975 "rot" -19 "tx" 0.22)
-  (dict "cx" 1265 "cy" 1025 "rot"  -5 "tx" 0.22)
+  (dict "cx"  845 "cy"  560 "rot" -14 "tx" 0.22)
+  (dict "cx" 1215 "cy"  660 "rot"  10 "tx" 0.22)
+  (dict "cx"  850 "cy"  900 "rot" -19 "tx" 0.22)
+  (dict "cx" 1220 "cy" 1010 "rot"  -5 "tx" 0.22)
 }}
-{{- /* 只作背景、不带标签的，绕开上面那四块和顶上的标题，有的故意出画 */ -}}
+{{- /* 只作背景、不带标签的，绕开上面那四块和顶上的标题，四边的故意出画 */ -}}
 {{- $deco := slice
-  (dict "cx"  250 "cy"  200 "rot" -20)
-  (dict "cx"  720 "cy"  120 "rot"  -6)
-  (dict "cx" 1200 "cy"  180 "rot"  12)
-  (dict "cx" 1680 "cy"  330 "rot" -14)
-  (dict "cx"  230 "cy"  640 "rot"   6)
-  (dict "cx" 1780 "cy"  780 "rot"  18)
-  (dict "cx"  240 "cy" 1120 "rot" -12)
-  (dict "cx" 1750 "cy" 1250 "rot"  -6)
-  (dict "cx"  700 "cy" 1380 "rot"  14)
-  (dict "cx" 1220 "cy" 1420 "rot" -18)
+  (dict "cx"  110 "cy"  140 "rot" -18)
+  (dict "cx"  470 "cy"  120 "rot"   7)
+  (dict "cx"  860 "cy"  150 "rot"  -5)
+  (dict "cx" 1210 "cy"  130 "rot"  12)
+  (dict "cx" 1540 "cy"  160 "rot" -10)
+  (dict "cx" 1900 "cy"  130 "rot"   6)
+  (dict "cx"  150 "cy"  470 "rot"   9)
+  (dict "cx"  500 "cy"  450 "rot" -13)
+  (dict "cx" 1580 "cy"  490 "rot"  13)
+  (dict "cx" 1930 "cy"  660 "rot"  -9)
+  (dict "cx"  100 "cy"  800 "rot"  -7)
+  (dict "cx"  460 "cy"  780 "rot"  15)
+  (dict "cx" 1560 "cy"  800 "rot" -16)
+  (dict "cx" 1890 "cy"  990 "rot"  14)
+  (dict "cx"  170 "cy" 1130 "rot"  12)
+  (dict "cx"  510 "cy" 1110 "rot"  -9)
+  (dict "cx" 1570 "cy" 1150 "rot"   8)
+  (dict "cx" 1920 "cy" 1330 "rot"  -6)
+  (dict "cx"  120 "cy" 1450 "rot" -14)
+  (dict "cx"  470 "cy" 1440 "rot"  11)
+  (dict "cx"  870 "cy" 1350 "rot" -13)
+  (dict "cx" 1220 "cy" 1380 "rot"   9)
+  (dict "cx" 1540 "cy" 1450 "rot" -12)
 }}
 
 <div class="tg-root">
@@ -47,7 +60,7 @@
 
       <g class="tg-deco" aria-hidden="true">
         {{- range $deco }}
-        <use href="#tgLabel" transform="translate({{ .cx }},{{ .cy }}) rotate({{ .rot }}) scale(.858)"/>
+        <use href="#tgLabel" transform="translate({{ .cx }},{{ .cy }}) rotate({{ .rot }}) scale(.70)"/>
         {{- end }}
       </g>
 
@@ -56,7 +69,9 @@
       {{- $s := index $slots $i }}
       <a class="tg-card" href="{{ $t.Page.RelPermalink }}"
          aria-label="{{ $t.Page.Title }}（{{ $t.Count }} 篇）">
-        <g transform="translate({{ $s.cx }},{{ $s.cy }}) rotate({{ $s.rot }}) scale(.858)">
+        <g transform="translate({{ $s.cx }},{{ $s.cy }}) rotate({{ $s.rot }}) scale(.70)">
+          {{- /* 只有带标签的这四块垫一层页面底色，压住底下别的布的线，字才干净 */ -}}
+          <rect class="tg-bg" x="-233" y="-150.5" width="466" height="301" rx="3"/>
           <use href="#tgLabel"/>
           <rect class="tg-hit" x="-233" y="-150.5" width="466" height="301" rx="3"/>
           <text class="tg-text" x="{{ printf "%.1f" (add -233.0 (mul 466.0 $s.tx)) }}" y="20.4">{{ $t.Page.Title }}<tspan
@@ -72,11 +87,17 @@
       <span class="tg-rule" aria-hidden="true"></span>
     </header>
 
-    <ul class="tg-list">
-      {{- range $terms }}
-      <li><a href="{{ .Page.RelPermalink }}">{{ .Page.Title }}<sup>{{ .Count }}</sup></a></li>
+    {{- /* 布上只放得下四块。真多出标签来，多的那些不显示，
+           但留在 DOM 里，键盘和搜索引擎还够得着 */ -}}
+    {{- if gt (len $terms) 4 }}
+    <ul class="tg-rest">
+      {{- range $i, $t := $terms }}
+      {{- if ge $i 4 }}
+      <li><a href="{{ $t.Page.RelPermalink }}">{{ $t.Page.Title }}（{{ $t.Count }} 篇）</a></li>
+      {{- end }}
       {{- end }}
     </ul>
+    {{- end }}
 
   </div>
 </div>
@@ -138,6 +159,7 @@
 
 /* ── 写在空白横线上的标签名，整块布都能点 ── */
 .tg-card{ cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.tg-bg{ fill:var(--theme, #fff); }
 .tg-hit{ fill:currentColor; fill-opacity:0; transition:fill-opacity .2s ease; }
 .tg-text{
   fill:currentColor; stroke:none;
@@ -158,24 +180,11 @@
   .tg-hit{ transition:none; }
 }
 
-/* ── 底下那排文字标签：兜底，也方便键盘和搜索引擎 ── */
-.tg-list{
-  position:absolute; left:0; right:0; bottom:1.4rem; z-index:4;
-  display:flex; flex-wrap:wrap; justify-content:center; gap:.7rem;
-  max-width:680px; margin:0 auto; padding:0 1rem; list-style:none;
-  opacity:.45; transition:opacity .2s ease;
+/* ── 放不下的标签：页面上不显示，只留给读屏和搜索引擎 ── */
+.tg-rest{
+  position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+  overflow:hidden; clip-path:inset(50%); white-space:nowrap; list-style:none;
 }
-.tg-list:hover{ opacity:1; }
-.tg-list a{
-  display:inline-block; padding:.35rem .9rem;
-  font-size:.78rem; letter-spacing:.06em;
-  color:var(--tg-mute); text-decoration:none;
-  border:1px solid var(--tg-mute); border-radius:999px;
-  background:var(--theme, #fff);
-  transition:color .2s ease, border-color .2s ease;
-}
-.tg-list a:hover{ color:var(--tg-ink); border-color:var(--tg-ink); }
-.tg-list sup{ margin-left:.35em; font-size:.75em; }
 </style>
 
 {{- end }}{{/* end main */}}
