@@ -6,10 +6,10 @@
        竖屏切左右，所以带标签的四块都放在中间那块横竖都切不到的地方。
        tx 是标签名从框左边起算的位置（按框宽的比例）。 */ -}}
 {{- $slots := slice
-  (dict "cx"  845 "cy"  560 "rot" -14 "tx" 0.22)
-  (dict "cx" 1215 "cy"  660 "rot"  10 "tx" 0.22)
-  (dict "cx"  850 "cy"  900 "rot" -19 "tx" 0.22)
-  (dict "cx" 1220 "cy" 1010 "rot"  -5 "tx" 0.22)
+  (dict "cx"  870 "cy"  590 "rot" -14 "tx" 0.22)
+  (dict "cx" 1190 "cy"  680 "rot"  10 "tx" 0.22)
+  (dict "cx"  875 "cy"  890 "rot" -19 "tx" 0.22)
+  (dict "cx" 1195 "cy"  985 "rot"  -5 "tx" 0.22)
 }}
 {{- /* 只作背景、不带标签的，绕开上面那四块和顶上的标题，四边的故意出画 */ -}}
 {{- $deco := slice
@@ -21,6 +21,8 @@
   (dict "cx" 1900 "cy"  130 "rot"   6)
   (dict "cx"  150 "cy"  470 "rot"   9)
   (dict "cx"  500 "cy"  450 "rot" -13)
+  (dict "cx"  720 "cy"  340 "rot" -12)
+  (dict "cx" 1040 "cy"  430 "rot"   8)
   (dict "cx" 1580 "cy"  490 "rot"  13)
   (dict "cx" 1930 "cy"  660 "rot"  -9)
   (dict "cx"  100 "cy"  800 "rot"  -7)
@@ -29,6 +31,8 @@
   (dict "cx" 1890 "cy"  990 "rot"  14)
   (dict "cx"  170 "cy" 1130 "rot"  12)
   (dict "cx"  510 "cy" 1110 "rot"  -9)
+  (dict "cx"  790 "cy" 1210 "rot"  10)
+  (dict "cx" 1080 "cy" 1200 "rot"  -7)
   (dict "cx" 1570 "cy" 1150 "rot"   8)
   (dict "cx" 1920 "cy" 1330 "rot"  -6)
   (dict "cx"  120 "cy" 1450 "rot" -14)
@@ -60,7 +64,7 @@
 
       <g class="tg-deco" aria-hidden="true">
         {{- range $deco }}
-        <use href="#tgLabel" transform="translate({{ .cx }},{{ .cy }}) rotate({{ .rot }}) scale(.70)"/>
+        <use href="#tgLabel" transform="translate({{ .cx }},{{ .cy }}) rotate({{ .rot }}) scale(.60)"/>
         {{- end }}
       </g>
 
@@ -69,7 +73,7 @@
       {{- $s := index $slots $i }}
       <a class="tg-card" href="{{ $t.Page.RelPermalink }}"
          aria-label="{{ $t.Page.Title }}（{{ $t.Count }} 篇）">
-        <g transform="translate({{ $s.cx }},{{ $s.cy }}) rotate({{ $s.rot }}) scale(.70)">
+        <g transform="translate({{ $s.cx }},{{ $s.cy }}) rotate({{ $s.rot }}) scale(.60)">
           {{- /* 只有带标签的这四块垫一层页面底色，压住底下别的布的线，字才干净 */ -}}
           <rect class="tg-bg" x="-233" y="-150.5" width="466" height="301" rx="3"/>
           <use href="#tgLabel"/>
@@ -177,6 +181,9 @@
 @media (max-width:768px){
   .tg-head{ top:clamp(3.5rem,8vh,5.5rem); }
   .tg-title{ font-size:1.5rem; letter-spacing:.3em; text-indent:.3em; }
+  /* 手机上画面被裁得更狠，字跟着放大一点才不至于太小 */
+  .tg-text{ font-size:46px; }
+  .tg-num{ font-size:21px; }
 }
 @media (prefers-reduced-motion: reduce){
   .tg-hit{ transition:none; }
