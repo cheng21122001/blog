@@ -1,57 +1,77 @@
 {{- define "main" }}
 
 {{- $terms := .Data.Terms.ByCount }}
-{{- $photo := resources.Get "images/tags-pole.jpg" }}
-{{- if not $photo }}{{ $photo = resources.Get "images/tags-pole.png" }}{{ end }}
-{{- if not $photo }}{{ $photo = resources.Get "images/tags-pole.jpeg" }}{{ end }}
-{{- /* 原图多半是大图，超过 1600 宽就压一版再上，省流量 */ -}}
-{{- if and $photo (gt $photo.Width 1600) }}{{ $photo = $photo.Resize "1600x webp q82" }}{{ end }}
 
-<div class="tp-root{{ if $photo }} has-photo{{ end }}" id="tpRoot">
+{{- /* 照片里那堆布标签，重画成黑白线条：一块布 = 一个方框 + 五条横线 + 右上角一块黑。
+       坐标系就是下面 viewBox 的 1050×1313，跟原照片一样大，位置和倾角是从照片上量出来的。
+       tx 是标签名从框左边起算的位置（按框宽的比例），边上被切掉的那几块要往里挪一点。 */ -}}
+{{- $slots := slice
+  (dict "cx" 444.1 "cy" 454.9 "rot" -25.5 "tx" 0.20)
+  (dict "cx" 684.9 "cy" 819.0 "rot"   9.8 "tx" 0.20)
+  (dict "cx" 145.6 "cy" 966.2 "rot" -14.9 "tx" 0.26)
+  (dict "cx" 543.9 "cy" 1257.8 "rot" -22.4 "tx" 0.37)
+}}
+{{- /* 只作背景、不带标签的那几块，有的故意让它出画 */ -}}
+{{- $deco := slice
+  (dict "cx" 118.5 "cy" 153.0  "rot" -24.1)
+  (dict "cx" 745.7 "cy"  61.7  "rot"  21.2)
+  (dict "cx" 1003  "cy" 456    "rot" -13.2)
+  (dict "cx" -78   "cy" 600    "rot"  -8.0)
+  (dict "cx" 1178  "cy" 830    "rot" -14.0)
+  (dict "cx" 1076  "cy" 1180   "rot" -33.0)
+}}
 
-  {{- if $photo }}
-  {{- /* 中空的鸟画一次，四只全部 <use> 复用 */ -}}
-  <svg class="tp-defs" width="0" height="0" aria-hidden="true" focusable="false">
-    <symbol id="tpBird" viewBox="0 0 130 78">
-      <path d="M7,23 L20,18
-               C17,8 27,2 38,4 C49,6 55,14 54,23
-               C67,25 79,31 90,40
-               L123,53 L121,59 L90,50
-               C80,58 63,62 49,59
-               C31,55 16,45 11,33 C10,29 8,25 7,23 Z"/>
-    </symbol>
-  </svg>
+<div class="tg-root">
 
-  <div class="tp-photo" id="tpPhoto">
-    <img class="tp-img" id="tpImg" src="{{ $photo.RelPermalink }}"
-         width="{{ $photo.Width }}" height="{{ $photo.Height }}"
-         alt="停在电线杆上的一群鸟" draggable="false">
+  <header class="tg-head">
+    <h1 class="tg-title">{{ .Title }}</h1>
+    <span class="tg-rule" aria-hidden="true"></span>
+  </header>
 
-    <header class="tp-head">
-      <h1 class="tp-title">{{ .Title }}</h1>
-      <span class="tp-rule" aria-hidden="true"></span>
-    </header>
+  <div class="tg-wrap">
+    <svg class="tg-svg" viewBox="0 0 1050 1313" role="img"
+         aria-label="一堆散落的空白标签，其中四块写着标签名">
+      <defs>
+        {{- /* 一块空标签，原点在正中；466×301 是照片上量的尺寸 */ -}}
+        <g id="tgLabel">
+          {{- /* 不写 fill，好让它继承 <use> 上那层页面底色，标签之间才有前后遮挡 */ -}}
+          <rect x="-233" y="-150.5" width="466" height="301" rx="3"
+                stroke="currentColor" stroke-width="2"/>
+          {{- /* 第一条是虚的，留着原来那排省略号的味道 */ -}}
+          <line x1="-211" y1="-63.2" x2="213" y2="-63.2"
+                stroke="currentColor" stroke-width="3" stroke-dasharray="9 7" stroke-linecap="round"/>
+          <line x1="-211" y1="-18.1" x2="213" y2="-18.1" stroke="currentColor" stroke-width="3"/>
+          <line x1="-211" y1="28.6"  x2="213" y2="28.6"  stroke="currentColor" stroke-width="3"/>
+          <line x1="-211" y1="75.3"  x2="213" y2="75.3"  stroke="currentColor" stroke-width="3"/>
+          <line x1="-211" y1="123.4" x2="213" y2="123.4" stroke="currentColor" stroke-width="3"/>
+          <rect x="116" y="-135" width="70" height="45" fill="currentColor"/>
+        </g>
+      </defs>
 
-    {{- /* 有标签的那几只鸟，直接换成中空的，肚子里写着标签名 */ -}}
-    <div class="tp-spots" id="tpSpots">
+      <g class="tg-deco" aria-hidden="true">
+        {{- range $deco }}
+        <use href="#tgLabel" transform="translate({{ .cx }},{{ .cy }}) rotate({{ .rot }})"/>
+        {{- end }}
+      </g>
+
       {{- range $i, $t := $terms }}
-      <a class="tp-spot" href="{{ $t.Page.RelPermalink }}" data-i="{{ $i }}"
+      {{- if lt $i 4 }}
+      {{- $s := index $slots $i }}
+      <a class="tg-card" href="{{ $t.Page.RelPermalink }}"
          aria-label="{{ $t.Page.Title }}（{{ $t.Count }} 篇）">
-        <svg class="tp-spot-bird" viewBox="0 0 130 78" aria-hidden="true" focusable="false"><use href="#tpBird"/></svg>
-        <span class="tp-name">{{ $t.Page.Title }}</span>
+        <g transform="translate({{ $s.cx }},{{ $s.cy }}) rotate({{ $s.rot }})">
+          <use href="#tgLabel"/>
+          <rect class="tg-hit" x="-233" y="-150.5" width="466" height="301" rx="3"/>
+          <text class="tg-text" x="{{ printf "%.1f" (add -233.0 (mul 466.0 $s.tx)) }}" y="20.4">{{ $t.Page.Title }}<tspan
+                class="tg-num" dx="11" dy="-15">{{ $t.Count }}</tspan></text>
+        </g>
       </a>
       {{- end }}
-    </div>
+      {{- end }}
+    </svg>
   </div>
-  {{- else }}
-  <header class="tp-head tp-head-plain">
-    <h1 class="tp-title">{{ .Title }}</h1>
-    <span class="tp-rule" aria-hidden="true"></span>
-  </header>
-  <p class="tp-missing">把电线杆那张图存成 <code>assets/images/tags-pole.jpg</code> 就会换成图片版。</p>
-  {{- end }}
 
-  <ul class="tp-list">
+  <ul class="tg-list">
     {{- range $terms }}
     <li><a href="{{ .Page.RelPermalink }}">{{ .Page.Title }}<sup>{{ .Count }}</sup></a></li>
     {{- end }}
@@ -59,213 +79,83 @@
 </div>
 
 <style>
-/* ── 这一页专属：白天空 / 黑天空 ── */
-body{ background:#fff; }
-:root[data-theme="dark"] body{ background:#000; }
-
-/* 照片要从视窗最顶上开始铺，所以导航栏浮起来盖在天空上，正文区的内外边距全清掉 */
-.header{
-  position:absolute; top:0; left:0; right:0; z-index:20;
-  background:transparent;
-}
-.main{ padding:0; max-width:none; }
-
-.tp-root{
-  --tp-sky:#ffffff;
-  --tp-ink:#000000;
-  --tp-mute:#8f8f8f;
-  position:relative;
+.tg-root{
+  --tg-ink:#111111;
+  --tg-mute:#8f8f8f;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",
               "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
   font-weight:300;
 }
-:root[data-theme="dark"] .tp-root{
-  --tp-sky:#000000;
-  --tp-ink:#ffffff;
-  --tp-mute:#8b8b8b;
+:root[data-theme="dark"] .tg-root{
+  --tg-ink:#f0f0f0;
+  --tg-mute:#8b8b8b;
 }
 
-/* ── 照片：铺满整屏，天空抠掉，只剩杆、线、鸟 ── */
-.tp-photo{
-  position:relative;
-  width:100vw; margin-left:calc(50% - 50vw);
-  height:100vh; height:100svh;
-  overflow:hidden;
-}
-.tp-img{
-  position:absolute; inset:0;
-  width:100%; height:100%;
-  object-fit:cover; object-position:50% 46%;
-  -webkit-user-select:none; user-select:none;
-  /* 先把天空推到纯白，再用 multiply 让它彻底透明——底下是什么颜色就是什么颜色 */
-  filter:brightness(1.12) contrast(1.28);
-  mix-blend-mode:multiply;
-  /* 底边化开，杆子不要被硬生生切一刀 */
-  -webkit-mask-image:linear-gradient(to bottom, #000 68%, transparent 100%);
-          mask-image:linear-gradient(to bottom, #000 68%, transparent 100%);
-}
-/* 深色：提亮后整张反过来，天空成纯黑，再用 screen 抠掉 */
-:root[data-theme="dark"] .tp-img{
-  filter:brightness(1.12) contrast(1.28) invert(1);
-  mix-blend-mode:screen;
-}
-/* 标题那一带的电线太满，用一层天空色把上面三分之一化掉 */
-.tp-photo::before{
-  content:''; position:absolute; inset:0; z-index:2; pointer-events:none;
-  background:linear-gradient(to bottom,
-    var(--tp-sky) 0%, var(--tp-sky) 15%, transparent 38%);
-}
-.tp-defs{ position:absolute; width:0; height:0; overflow:hidden; }
-
-/* ── 标题浮在天空上 ── */
-.tp-head{
-  position:absolute; left:0; right:0; top:clamp(5rem,12vh,9rem); z-index:4;
-  text-align:center; pointer-events:none;
-}
-.tp-head-plain{ position:static; padding:3rem 0 0; }
-.tp-title{
+/* ── 标题 ── */
+.tg-head{ text-align:center; padding:1.2rem 0 0; }
+.tg-title{
   margin:0;
   font-size:2rem; font-weight:600;
   letter-spacing:.4em; text-indent:.4em;
-  color:var(--tp-ink);
+  color:var(--tg-ink);
 }
-.tp-rule{
+.tg-rule{
   display:block; width:64px; height:2px; margin:1.1rem auto 0;
-  background:var(--tp-ink);
+  background:var(--tg-ink);
 }
 
-/* ── 有标签的鸟：中空，肚子里写字，点一下就进去 ── */
-.tp-spots{ position:relative; z-index:5; }
-.tp-spot{
-  position:absolute;
-  transform:translate(-50%,-50%);
-  display:block; text-decoration:none;
-  color:var(--tp-ink);
-  -webkit-tap-highlight-color:transparent;
-  cursor:pointer;
+/* ── 那堆线条标签：背景全透，只有线 ── */
+.tg-wrap{
+  width:min(640px, 90vw, (100svh - 17rem) * 1050 / 1313);
+  margin:1.6rem auto 0;
 }
-/* 判定区往外再放宽一圈，手指和鼠标都好按 */
-.tp-spot::after{
-  content:''; position:absolute; inset:-14%;
+.tg-svg{
+  display:block; width:100%; height:auto;
+  color:var(--tg-ink);
+  overflow:hidden;
 }
-.tp-spot-bird{
-  display:block; width:100%; height:100%;
-  fill:var(--tp-sky);
-  stroke:currentColor; stroke-width:2;
-  stroke-linejoin:round;
-  vector-effect:non-scaling-stroke;
-  transition:fill .2s ease;
+/* 每块布本身是页面底色，压住下面那块的线；布以外全透明 */
+.tg-svg use{ fill:var(--theme, #fff); }
+.tg-deco{ opacity:.4; }
+
+/* ── 写在空白横线上的标签名，整块布都能点 ── */
+.tg-card{ cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.tg-hit{ fill:currentColor; fill-opacity:0; transition:fill-opacity .2s ease; }
+.tg-text{
+  fill:currentColor;
+  font-size:36px; font-weight:500; letter-spacing:.04em;
 }
-.tp-spot.is-flipped .tp-spot-bird{ transform:scaleX(-1); }
-.tp-name{
-  position:absolute; left:38%; top:47%;
-  transform:translate(-50%,-50%);
-  font-size:calc(var(--bird-w,120px) * .108);
-  font-weight:600; letter-spacing:.02em;
-  color:var(--tp-ink); white-space:nowrap;
-  pointer-events:none;
-  transition:color .2s ease;
-}
-.tp-spot.is-flipped .tp-name{ left:60%; }
-/* 碰一下就填实，像原本那些黑鸟 */
-.tp-spot:hover .tp-spot-bird,
-.tp-spot:focus-visible .tp-spot-bird,
-.tp-spot:active .tp-spot-bird{ fill:var(--tp-ink); }
-.tp-spot:hover .tp-name,
-.tp-spot:focus-visible .tp-name,
-.tp-spot:active .tp-name{ color:var(--tp-sky); }
+.tg-num{ font-size:17px; font-weight:400; letter-spacing:0; }
+.tg-card:hover .tg-hit,
+.tg-card:focus-visible .tg-hit{ fill-opacity:.07; }
+.tg-card:hover .tg-text,
+.tg-card:focus-visible .tg-text{ text-decoration:underline; text-underline-offset:.22em; }
+.tg-card:focus-visible{ outline:none; }
 
 @media (max-width:768px){
-  .tp-head{ top:clamp(4rem,9vh,6rem); }
-  .tp-title{ font-size:1.5rem; letter-spacing:.3em; text-indent:.3em; }
+  .tg-title{ font-size:1.5rem; letter-spacing:.3em; text-indent:.3em; }
+  .tg-wrap{ width:min(640px, 94vw, (100svh - 12rem) * 1050 / 1313); }
 }
-
 @media (prefers-reduced-motion: reduce){
-  .tp-spot-bird,.tp-name{ transition:none; }
+  .tg-hit{ transition:none; }
 }
 
 /* ── 底下那排文字标签：兜底，也方便键盘和搜索引擎 ── */
-.tp-list{
+.tg-list{
   display:flex; flex-wrap:wrap; justify-content:center; gap:.7rem;
-  max-width:680px; margin:2.4rem auto 3rem; padding:0 1rem; list-style:none;
+  max-width:680px; margin:2rem auto 3rem; padding:0 1rem; list-style:none;
 }
-.tp-list a{
+.tg-list a{
   display:inline-block; padding:.35rem .9rem;
   font-size:.78rem; letter-spacing:.06em;
-  color:var(--tp-mute); text-decoration:none;
-  border:1px solid var(--tp-mute); border-radius:999px;
+  color:var(--tg-mute); text-decoration:none;
+  border:1px solid var(--tg-mute); border-radius:999px;
   transition:color .2s ease, border-color .2s ease;
 }
-.tp-list a:hover{ color:var(--tp-ink); border-color:var(--tp-ink); }
-.tp-list sup{ margin-left:.35em; font-size:.75em; }
-.tp-root.has-photo .tp-list{ opacity:.5; }
-.tp-root.has-photo .tp-list:hover{ opacity:1; }
-
-.tp-missing{
-  max-width:600px; margin:2rem auto 0; text-align:center;
-  font-size:.8rem; line-height:2; color:var(--tp-mute);
-}
+.tg-list a:hover{ color:var(--tg-ink); border-color:var(--tg-ink); }
+.tg-list sup{ margin-left:.35em; font-size:.75em; }
+.tg-list{ opacity:.5; }
+.tg-list:hover{ opacity:1; }
 </style>
-
-{{- if $photo }}
-<script>
-(function(){
-  var photo = document.getElementById('tpPhoto');
-  var img   = document.getElementById('tpImg');
-  var spots = Array.prototype.slice.call(document.querySelectorAll('.tp-spot'));
-  if(!photo || !img || !spots.length) return;
-
-  /* ── 原图里每只鸟的位置，按原图宽高的百分比记 ──
-     排在前面的先被标签认领，所以这几只挑的是彼此隔得最开的。
-     x/y 是鸟身体中心，flip=1 表示这只鸟头朝右。想微调就改这张表。 */
-  var SPOTS = [
-    { x: 37.3, y: 50.5, flip: 0 },   // 左边单独站在电线上、朝左的那只
-    { x: 47.2, y: 45.2, flip: 1 },   // 杆顶左
-    { x: 57.1, y: 52.8, flip: 1 },   // 杆子右边那组里靠外的
-    { x: 66.3, y: 54.9, flip: 1 },   // 最右边那只
-    { x: 51.7, y: 44.8, flip: 1 },
-    { x: 41.7, y: 50.0, flip: 0 },
-    { x: 44.3, y: 49.8, flip: 0 },
-    { x: 51.1, y: 49.4, flip: 1 },
-    { x: 54.6, y: 49.7, flip: 1 },
-    { x: 60.2, y: 53.1, flip: 1 },
-    { x: 53.8, y: 53.1, flip: 1 }
-  ];
-
-  /* 图是 object-fit:cover 铺的，两边会被裁掉，
-     所以中空鸟不能按容器百分比放，得先算出图真正画在哪 */
-  function place(){
-    var nw = img.naturalWidth || 1200, nh = img.naturalHeight || 1600;
-    var W = photo.clientWidth, H = photo.clientHeight;
-    if(!W || !H) return;
-
-    var scale = Math.max(W / nw, H / nh);
-    var dw = nw * scale, dh = nh * scale;
-    var ox = (W - dw) / 2, oy = (H - dh) * 0.46;   // 和 CSS 里的 object-position 对齐
-
-    /* 中空鸟要盖得住照片里那只黑鸟，又要装得下标签名 */
-    var bw = Math.round(Math.min(190, Math.max(96, dw * 0.092)));
-    var bh = Math.round(bw * 78 / 130);
-
-    spots.forEach(function(el, i){
-      var s = SPOTS[i % SPOTS.length];
-      el.style.left   = (ox + dw * s.x / 100).toFixed(1) + 'px';
-      el.style.top    = (oy + dh * s.y / 100).toFixed(1) + 'px';
-      el.style.width  = bw + 'px';
-      el.style.height = bh + 'px';
-      el.style.setProperty('--bird-w', bw + 'px');
-      el.classList.toggle('is-flipped', !!s.flip);
-    });
-  }
-
-  place();
-  if(!img.complete) img.addEventListener('load', place);
-  var rt = null;
-  window.addEventListener('resize', function(){
-    clearTimeout(rt); rt = setTimeout(place, 100);
-  });
-})();
-</script>
-{{- end }}
 
 {{- end }}{{/* end main */}}
