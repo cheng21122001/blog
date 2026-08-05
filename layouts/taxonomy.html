@@ -133,7 +133,9 @@
   display:block; width:100%; height:100%;
   color:var(--tg-ink);
 }
-.tg-deco{ opacity:.38; }
+/* 整体压淡：装饰的最淡，带标签那四块的线次之，标签名最实 */
+.tg-deco{ opacity:.18; }
+.tg-card use{ opacity:.45; }
 /* 顶上一小条化开，给导航和标题让路 */
 .tg-stage::before{
   content:''; position:absolute; inset:0; z-index:2; pointer-events:none;
@@ -162,7 +164,7 @@
 .tg-bg{ fill:var(--theme, #fff); }
 .tg-hit{ fill:currentColor; fill-opacity:0; transition:fill-opacity .2s ease; }
 .tg-text{
-  fill:currentColor; stroke:none;
+  fill:currentColor; stroke:none; opacity:.72;
   font-size:36px; font-weight:500; letter-spacing:.04em;
 }
 .tg-num{ font-size:17px; font-weight:400; letter-spacing:0; }
