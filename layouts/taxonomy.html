@@ -2,55 +2,52 @@
 
 {{- $terms := .Data.Terms.ByCount }}
 
-{{- /* 照片里那堆布标签，重画成黑白线条：一块布 = 一个方框 + 五条横线 + 右上角一块黑。
-       坐标系就是下面 viewBox 的 1050×1313，跟原照片一样大，位置和倾角是从照片上量出来的。
-       tx 是标签名从框左边起算的位置（按框宽的比例），边上被切掉的那几块要往里挪一点。 */ -}}
+{{- /* 一整屏的线条布标签。画布 2000×1500，用 slice 铺满视窗——横屏切上下、
+       竖屏切左右，所以带标签的四块都放在中间那块横竖都切不到的地方。
+       tx 是标签名从框左边起算的位置（按框宽的比例）。 */ -}}
 {{- $slots := slice
-  (dict "cx" 444.1 "cy" 454.9 "rot" -25.5 "tx" 0.20)
-  (dict "cx" 684.9 "cy" 819.0 "rot"   9.8 "tx" 0.20)
-  (dict "cx" 145.6 "cy" 966.2 "rot" -14.9 "tx" 0.26)
-  (dict "cx" 543.9 "cy" 1257.8 "rot" -22.4 "tx" 0.37)
+  (dict "cx"  810 "cy"  545 "rot" -14 "tx" 0.22)
+  (dict "cx" 1265 "cy"  650 "rot"  10 "tx" 0.22)
+  (dict "cx"  815 "cy"  975 "rot" -19 "tx" 0.22)
+  (dict "cx" 1265 "cy" 1025 "rot"  -5 "tx" 0.22)
 }}
-{{- /* 只作背景、不带标签的那几块，有的故意让它出画 */ -}}
+{{- /* 只作背景、不带标签的，绕开上面那四块和顶上的标题，有的故意出画 */ -}}
 {{- $deco := slice
-  (dict "cx" 118.5 "cy" 153.0  "rot" -24.1)
-  (dict "cx" 745.7 "cy"  61.7  "rot"  21.2)
-  (dict "cx" 1003  "cy" 456    "rot" -13.2)
-  (dict "cx" -78   "cy" 600    "rot"  -8.0)
-  (dict "cx" 1178  "cy" 830    "rot" -14.0)
-  (dict "cx" 1076  "cy" 1180   "rot" -33.0)
+  (dict "cx"  250 "cy"  200 "rot" -20)
+  (dict "cx"  720 "cy"  120 "rot"  -6)
+  (dict "cx" 1200 "cy"  180 "rot"  12)
+  (dict "cx" 1680 "cy"  330 "rot" -14)
+  (dict "cx"  230 "cy"  640 "rot"   6)
+  (dict "cx" 1780 "cy"  780 "rot"  18)
+  (dict "cx"  240 "cy" 1120 "rot" -12)
+  (dict "cx" 1750 "cy" 1250 "rot"  -6)
+  (dict "cx"  700 "cy" 1380 "rot"  14)
+  (dict "cx" 1220 "cy" 1420 "rot" -18)
 }}
 
 <div class="tg-root">
+  <div class="tg-stage">
 
-  <header class="tg-head">
-    <h1 class="tg-title">{{ .Title }}</h1>
-    <span class="tg-rule" aria-hidden="true"></span>
-  </header>
-
-  <div class="tg-wrap">
-    <svg class="tg-svg" viewBox="0 0 1050 1313" role="img"
-         aria-label="一堆散落的空白标签，其中四块写着标签名">
+    <svg class="tg-svg" viewBox="0 0 2000 1500" preserveAspectRatio="xMidYMid slice"
+         role="img" aria-label="一屏散落的空白标签，其中四块写着标签名">
       <defs>
-        {{- /* 一块空标签，原点在正中；466×301 是照片上量的尺寸 */ -}}
-        <g id="tgLabel">
-          {{- /* 不写 fill，好让它继承 <use> 上那层页面底色，标签之间才有前后遮挡 */ -}}
-          <rect x="-233" y="-150.5" width="466" height="301" rx="3"
-                stroke="currentColor" stroke-width="2"/>
+        {{- /* 一块空标签，原点在正中；466×301 是照片上量的尺寸，里面全是透的 */ -}}
+        <g id="tgLabel" fill="none" stroke="currentColor">
+          <rect x="-233" y="-150.5" width="466" height="301" rx="3" stroke-width="2.4"/>
           {{- /* 第一条是虚的，留着原来那排省略号的味道 */ -}}
           <line x1="-211" y1="-63.2" x2="213" y2="-63.2"
-                stroke="currentColor" stroke-width="3" stroke-dasharray="9 7" stroke-linecap="round"/>
-          <line x1="-211" y1="-18.1" x2="213" y2="-18.1" stroke="currentColor" stroke-width="3"/>
-          <line x1="-211" y1="28.6"  x2="213" y2="28.6"  stroke="currentColor" stroke-width="3"/>
-          <line x1="-211" y1="75.3"  x2="213" y2="75.3"  stroke="currentColor" stroke-width="3"/>
-          <line x1="-211" y1="123.4" x2="213" y2="123.4" stroke="currentColor" stroke-width="3"/>
-          <rect x="116" y="-135" width="70" height="45" fill="currentColor"/>
+                stroke-width="3.4" stroke-dasharray="9 7" stroke-linecap="round"/>
+          <line x1="-211" y1="-18.1" x2="213" y2="-18.1" stroke-width="3.4"/>
+          <line x1="-211" y1="28.6"  x2="213" y2="28.6"  stroke-width="3.4"/>
+          <line x1="-211" y1="75.3"  x2="213" y2="75.3"  stroke-width="3.4"/>
+          <line x1="-211" y1="123.4" x2="213" y2="123.4" stroke-width="3.4"/>
+          <rect x="116" y="-135" width="70" height="45" fill="currentColor" stroke="none"/>
         </g>
       </defs>
 
       <g class="tg-deco" aria-hidden="true">
         {{- range $deco }}
-        <use href="#tgLabel" transform="translate({{ .cx }},{{ .cy }}) rotate({{ .rot }})"/>
+        <use href="#tgLabel" transform="translate({{ .cx }},{{ .cy }}) rotate({{ .rot }}) scale(.858)"/>
         {{- end }}
       </g>
 
@@ -59,7 +56,7 @@
       {{- $s := index $slots $i }}
       <a class="tg-card" href="{{ $t.Page.RelPermalink }}"
          aria-label="{{ $t.Page.Title }}（{{ $t.Count }} 篇）">
-        <g transform="translate({{ $s.cx }},{{ $s.cy }}) rotate({{ $s.rot }})">
+        <g transform="translate({{ $s.cx }},{{ $s.cy }}) rotate({{ $s.rot }}) scale(.858)">
           <use href="#tgLabel"/>
           <rect class="tg-hit" x="-233" y="-150.5" width="466" height="301" rx="3"/>
           <text class="tg-text" x="{{ printf "%.1f" (add -233.0 (mul 466.0 $s.tx)) }}" y="20.4">{{ $t.Page.Title }}<tspan
@@ -69,16 +66,29 @@
       {{- end }}
       {{- end }}
     </svg>
-  </div>
 
-  <ul class="tg-list">
-    {{- range $terms }}
-    <li><a href="{{ .Page.RelPermalink }}">{{ .Page.Title }}<sup>{{ .Count }}</sup></a></li>
-    {{- end }}
-  </ul>
+    <header class="tg-head">
+      <h1 class="tg-title">{{ .Title }}</h1>
+      <span class="tg-rule" aria-hidden="true"></span>
+    </header>
+
+    <ul class="tg-list">
+      {{- range $terms }}
+      <li><a href="{{ .Page.RelPermalink }}">{{ .Page.Title }}<sup>{{ .Count }}</sup></a></li>
+      {{- end }}
+    </ul>
+
+  </div>
 </div>
 
 <style>
+/* 这一页整屏铺画，导航浮起来盖在上面，正文区的内外边距全清掉 */
+.header{
+  position:absolute; top:0; left:0; right:0; z-index:20;
+  background:transparent;
+}
+.main{ padding:0; max-width:none; }
+
 .tg-root{
   --tg-ink:#111111;
   --tg-mute:#8f8f8f;
@@ -91,8 +101,30 @@
   --tg-mute:#8b8b8b;
 }
 
-/* ── 标题 ── */
-.tg-head{ text-align:center; padding:1.2rem 0 0; }
+/* ── 一整屏，左右顶到边 ── */
+.tg-stage{
+  position:relative;
+  width:100vw; margin-left:calc(50% - 50vw);
+  height:100vh; height:100svh;
+  overflow:hidden;
+}
+.tg-svg{
+  display:block; width:100%; height:100%;
+  color:var(--tg-ink);
+}
+.tg-deco{ opacity:.38; }
+/* 顶上一小条化开，给导航和标题让路 */
+.tg-stage::before{
+  content:''; position:absolute; inset:0; z-index:2; pointer-events:none;
+  background:linear-gradient(to bottom,
+    var(--theme, #fff) 0%, var(--theme, #fff) 5%, transparent 19%);
+}
+
+/* ── 标题浮在最上面 ── */
+.tg-head{
+  position:absolute; left:0; right:0; top:clamp(4.5rem,10vh,7.5rem); z-index:4;
+  text-align:center; pointer-events:none;
+}
 .tg-title{
   margin:0;
   font-size:2rem; font-weight:600;
@@ -104,25 +136,11 @@
   background:var(--tg-ink);
 }
 
-/* ── 那堆线条标签：背景全透，只有线 ── */
-.tg-wrap{
-  width:min(640px, 90vw, (100svh - 17rem) * 1050 / 1313);
-  margin:1.6rem auto 0;
-}
-.tg-svg{
-  display:block; width:100%; height:auto;
-  color:var(--tg-ink);
-  overflow:hidden;
-}
-/* 每块布本身是页面底色，压住下面那块的线；布以外全透明 */
-.tg-svg use{ fill:var(--theme, #fff); }
-.tg-deco{ opacity:.4; }
-
 /* ── 写在空白横线上的标签名，整块布都能点 ── */
 .tg-card{ cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .tg-hit{ fill:currentColor; fill-opacity:0; transition:fill-opacity .2s ease; }
 .tg-text{
-  fill:currentColor;
+  fill:currentColor; stroke:none;
   font-size:36px; font-weight:500; letter-spacing:.04em;
 }
 .tg-num{ font-size:17px; font-weight:400; letter-spacing:0; }
@@ -133,8 +151,8 @@
 .tg-card:focus-visible{ outline:none; }
 
 @media (max-width:768px){
+  .tg-head{ top:clamp(3.5rem,8vh,5.5rem); }
   .tg-title{ font-size:1.5rem; letter-spacing:.3em; text-indent:.3em; }
-  .tg-wrap{ width:min(640px, 94vw, (100svh - 12rem) * 1050 / 1313); }
 }
 @media (prefers-reduced-motion: reduce){
   .tg-hit{ transition:none; }
@@ -142,20 +160,22 @@
 
 /* ── 底下那排文字标签：兜底，也方便键盘和搜索引擎 ── */
 .tg-list{
+  position:absolute; left:0; right:0; bottom:1.4rem; z-index:4;
   display:flex; flex-wrap:wrap; justify-content:center; gap:.7rem;
-  max-width:680px; margin:2rem auto 3rem; padding:0 1rem; list-style:none;
+  max-width:680px; margin:0 auto; padding:0 1rem; list-style:none;
+  opacity:.45; transition:opacity .2s ease;
 }
+.tg-list:hover{ opacity:1; }
 .tg-list a{
   display:inline-block; padding:.35rem .9rem;
   font-size:.78rem; letter-spacing:.06em;
   color:var(--tg-mute); text-decoration:none;
   border:1px solid var(--tg-mute); border-radius:999px;
+  background:var(--theme, #fff);
   transition:color .2s ease, border-color .2s ease;
 }
 .tg-list a:hover{ color:var(--tg-ink); border-color:var(--tg-ink); }
 .tg-list sup{ margin-left:.35em; font-size:.75em; }
-.tg-list{ opacity:.5; }
-.tg-list:hover{ opacity:1; }
 </style>
 
 {{- end }}{{/* end main */}}
