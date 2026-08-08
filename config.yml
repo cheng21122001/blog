@@ -5,6 +5,9 @@ title: 档案间
 copyright: ""
 theme: [hugo-PaperMod]
 
+# 中文按字算，不然 WordCount 会把一整段当成一个词
+hasCJKLanguage: true
+
 enableInlineShortcodes: true
 enableRobotsTXT: true
 buildDrafts: false
@@ -66,7 +69,7 @@ params:
   # disableThemeToggle: true
   ShowShareButtons: true
   ShowReadingTime: false
-  ShowWordCount: false
+  ShowWordCount: true   # 字数排在作者名左边（post_meta 里 WordCount 就在 author 前面）
   # disableSpecial1stPost: true
   displayFullLangName: true
   ShowPostNavLinks: true
