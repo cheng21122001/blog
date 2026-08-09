@@ -21,10 +21,8 @@
 <canvas id="wordRain" aria-hidden="true"></canvas>
 
 <div class="search-hero">
-  <header class="search-head">
-    <h1 class="search-title">{{ .Title }}</h1>
-    <span class="search-rule" aria-hidden="true"></span>
-  </header>
+  {{- /* 页名和顶部导航里的「搜索」重复，画面上不再出现，只留给读屏和搜索引擎 */ -}}
+  <h1 class="sr-only">{{ .Title }}</h1>
 
   {{- /* #searchbox 只当容器（键盘上下键要靠它判断焦点在不在搜索区里），
          椭圆边框挪到里面的 .searchfield 上，这样出结果时搜索框不会被撑大 */ -}}
@@ -47,23 +45,12 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
   position:fixed; inset:0; width:100%; height:100%;
   z-index:0; pointer-events:none;
 }
+/* 标题撤了之后，搜索框自己往下落到视觉重心上 */
 .search-hero{
   position:relative; z-index:1;
   display:flex; flex-direction:column; align-items:center;
   min-height:calc(100vh - var(--header-height) - 6rem);
-  padding-top:12vh;
-}
-.search-head{ text-align:center; margin-bottom:2.2rem; }
-.search-title{
-  font-size:2rem; font-weight:600; letter-spacing:.4em; text-indent:.4em; margin:0;
-}
-/* 和时间线 / 标签页标题下的短线同一根 */
-.search-rule{
-  display:block; width:64px; height:2px; margin:1.1rem auto 0;
-  background:var(--primary);
-}
-.search-sub{
-  color:var(--secondary); font-size:.82rem; letter-spacing:.2em; margin:.5rem 0 0;
+  padding-top:22vh;
 }
 
 /* 容器本身不画边框，搜出多少条都不影响上面那颗椭圆 */

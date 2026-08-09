@@ -1,0 +1,21 @@
+{{- define "main" }}
+
+{{- /* 和主题自带的标签页一样，只有一处不同：
+       页名和顶部导航里的「标签」重复，画面上不再出现，
+       只留一个隐藏的 h1 给读屏和搜索引擎。 */ -}}
+<h1 class="sr-only">{{ .Title }}</h1>
+
+<ul class="terms-tags terms-tags-page">
+  {{- $type := .Type }}
+  {{- range $key, $value := .Data.Terms.Alphabetical }}
+    {{- $name := .Name }}
+    {{- $count := .Count }}
+    {{- with site.GetPage (printf "/%s/%s" $type $name) }}
+    <li>
+      <a href="{{ .Permalink }}">{{ .LinkTitle }} <sup><strong><sup>{{ $count }}</sup></strong></sup> </a>
+    </li>
+    {{- end }}
+  {{- end }}
+</ul>
+
+{{- end }}{{/* end main */ -}}

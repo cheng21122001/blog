@@ -74,6 +74,18 @@ button,
     color: var(--primary);
 }
 
+/* 页名和顶部导航重复的那几页，标题只留给读屏和搜索引擎，画面上不出现 */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
 a:focus-visible,
 button:focus-visible,
 summary:focus-visible {
@@ -470,6 +482,11 @@ details.toc .inner {
 
 .terms-tags {
     justify-content: center;
+}
+
+/* 标签总览页把标题撤了，胶囊自己往下落一点，不要贴着导航栏 */
+.terms-tags-page {
+    margin-top: 20vh;
 }
 
 .post-entry {

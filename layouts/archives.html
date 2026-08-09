@@ -6,10 +6,8 @@
 
 <div class="sp-root" id="spRoot">
 
-  <header class="sp-head">
-    <h1 class="sp-title">{{ .Title }}</h1>
-    <span class="sp-rule" aria-hidden="true"></span>
-  </header>
+  {{- /* 页名和顶部导航里的「时间线」重复，画面上不再出现，只留给读屏和搜索引擎 */ -}}
+  <h1 class="sr-only">{{ .Title }}</h1>
 
   <div class="sp-stage" id="spStage">
     <div class="sp-canvas" id="spCanvas">
@@ -105,27 +103,6 @@ body{ background:var(--theme); }
   width:100vw;
   margin-left:calc(50% - 50vw);
   overflow-x:clip;
-}
-
-/* ── 标题：居中钉住不动，螺旋从它身后走过（和 Search / Tags 一个格式） ── */
-.sp-head{
-  /* 钉在站点导航栏底下，两块不打架 */
-  position:sticky; top:var(--header-height); z-index:6;
-  padding:2.2rem max(6vw,20px) 1.6rem;
-  text-align:center;
-  pointer-events:none;
-  background:linear-gradient(to bottom,
-    var(--sp-bg) 0, var(--sp-bg) 68%, transparent 100%);
-}
-.sp-title{
-  margin:0;
-  font-size:2rem; font-weight:600;
-  letter-spacing:.4em; text-indent:.4em;
-  color:var(--sp-ink);
-}
-.sp-rule{
-  display:block; width:64px; height:2px; margin:1.1rem auto 0;
-  background:var(--sp-ink);
 }
 
 /* ── 螺旋舞台 ── */
@@ -260,8 +237,6 @@ body{ background:var(--theme); }
 
 /* ── 手机竖屏：面板从底部滑出 ── */
 @media (max-width:768px){
-  .sp-head{ padding-top:1.6rem; }
-  .sp-title{ font-size:1.5rem; letter-spacing:.3em; text-indent:.3em; }
   .sp-stage{ padding:30vh 0 10vh; }
   .sp-canvas{ width:92vw; }
   .sp-root.ready .sp-cap{ max-width:40vw; font-size:.68rem; }
