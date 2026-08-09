@@ -22,7 +22,8 @@
 
 <div class="search-hero">
   <header class="search-head">
-    <h1 class="search-title">Search</h1>
+    <h1 class="search-title">{{ .Title }}</h1>
+    <span class="search-rule" aria-hidden="true"></span>
   </header>
 
   {{- /* #searchbox 只当容器（键盘上下键要靠它判断焦点在不在搜索区里），
@@ -52,9 +53,14 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
   min-height:calc(100vh - var(--header-height) - 6rem);
   padding-top:12vh;
 }
-.search-head{ text-align:center; margin-bottom:1.6rem; }
+.search-head{ text-align:center; margin-bottom:2.2rem; }
 .search-title{
   font-size:2rem; font-weight:600; letter-spacing:.4em; text-indent:.4em; margin:0;
+}
+/* 和时间线 / 标签页标题下的短线同一根 */
+.search-rule{
+  display:block; width:64px; height:2px; margin:1.1rem auto 0;
+  background:var(--primary);
 }
 .search-sub{
   color:var(--secondary); font-size:.82rem; letter-spacing:.2em; margin:.5rem 0 0;
@@ -70,13 +76,19 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
   border:1px solid var(--primary);
   border-radius:999px;
   padding:.2rem;
-  box-shadow:0 8px 30px rgba(0,0,0,.10);
+  box-shadow:0 10px 34px rgba(23,23,26,.07);
+}
+:root[data-theme="dark"] .searchfield{
+  box-shadow:0 10px 34px rgba(0,0,0,.35);
 }
 .searchfield input{
   width:100%; box-sizing:border-box;
   border:none; outline:none; background:transparent;
   color:var(--primary);
   padding:.7rem 1.3rem; font-size:1rem; letter-spacing:.05em;
+}
+.searchfield input::placeholder{
+  color:var(--secondary); letter-spacing:.1em; font-size:.9rem;
 }
 .searchResults{
   list-style:none; margin:.9rem 0 0; padding:0;
@@ -86,8 +98,10 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
   position:relative;
   background:var(--theme);
   border:1px solid var(--border);
-  border-radius:6px;
-  padding:.7rem 1rem; margin-bottom:.5rem;
+  border-radius:2px;
+  padding:.75rem 1.1rem; margin-bottom:.5rem;
+  font-family:var(--font-serif);
+  font-size:.98rem; letter-spacing:.03em;
   display:flex; align-items:center; justify-content:space-between;
   transition:border-color .2s ease, transform .2s ease;
 }

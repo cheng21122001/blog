@@ -74,37 +74,29 @@
 </aside>
 
 <style>
-/* ── 这一页专属：纯黑白两套配色，跟随站点右上角的主题切换 ── */
-body{ background:#fff; }
-:root[data-theme="dark"] body{ background:#000; }
+/* ── 这一页专属：颜色全部取自站点令牌，跟随右上角的主题切换 ── */
+body{ background:var(--theme); }
 
 /* 站点导航栏（档案间 / 搜索 · 标签 · 时间线）在这一页钉住不动 */
 .header{
   position:sticky; top:0; z-index:20;
-  background:#fff;
+  background:var(--theme);
 }
-:root[data-theme="dark"] .header{ background:#000; }
 
 .sp-root,
 .sp-panel{
-  --sp-bg:#ffffff;
-  --sp-ink:#000000;
-  --sp-mute:#909090;
-  --sp-hair:#dcdcdc;
-  --sp-strand:#bdbdbd;
-  --sp-strand-back:#e6e6e6;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",
-              "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --sp-bg:var(--theme);
+  --sp-ink:var(--primary);
+  --sp-mute:var(--secondary);
+  --sp-hair:var(--border);
+  --sp-strand:#bdbab3;
+  --sp-strand-back:var(--tertiary);
+  font-family:var(--font-sans);
   font-weight:300;
 }
 :root[data-theme="dark"] .sp-root,
 :root[data-theme="dark"] .sp-panel{
-  --sp-bg:#000000;
-  --sp-ink:#ffffff;
-  --sp-mute:#8b8b8b;
-  --sp-hair:#3a3a3a;
-  --sp-strand:#5e5e5e;
-  --sp-strand-back:#303030;
+  --sp-strand:#5e5c58;
 }
 
 /* 撑满整个视窗宽度（跳出 PaperMod 的 720px 正文栏） */
@@ -229,7 +221,7 @@ body{ background:#fff; }
   padding:1.6rem 1.5rem;
   background:var(--sp-bg);
   border:1px solid var(--sp-hair);
-  border-radius:10px;
+  border-radius:2px;
   opacity:0; pointer-events:none;
   transition:transform .45s cubic-bezier(.22,.61,.36,1), opacity .3s ease;
 }
@@ -239,11 +231,13 @@ body{ background:#fff; }
   font-variant-numeric:tabular-nums;
 }
 .sp-p-title{
-  margin:.7rem 0 0; font-size:1.15rem; font-weight:700; line-height:1.5;
-  color:var(--sp-ink); letter-spacing:.02em;
+  margin:.7rem 0 0; font-family:var(--font-serif);
+  font-size:1.15rem; font-weight:600; line-height:1.6;
+  color:var(--sp-ink); letter-spacing:.04em;
 }
 .sp-p-ex{
-  margin:.9rem 0 0; font-size:.8rem; line-height:1.9; color:var(--sp-mute);
+  margin:.9rem 0 0; font-family:var(--font-serif);
+  font-size:.85rem; line-height:1.95; color:var(--sp-mute);
   display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden;
 }
 .sp-p-go{
@@ -276,7 +270,7 @@ body{ background:#fff; }
     right:0; left:0; top:auto; bottom:0;
     width:auto; max-height:34vh; overflow-y:auto;
     padding:.85rem 1.2rem calc(.9rem + env(safe-area-inset-bottom));
-    border:none; border-top:1px solid var(--sp-hair); border-radius:14px 14px 0 0;
+    border:none; border-top:1px solid var(--sp-hair); border-radius:0;
     transform:translateY(100%);
   }
   .sp-panel.open{ transform:translateY(0); }
