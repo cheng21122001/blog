@@ -1,6 +1,7 @@
 ---
 title: "这个漂亮的塑料世界"
 date: 2026-09-01
+author: ["普原", "E"]
 tags: ["拼贴诗"]
 ShowWordCount: false
 ShowToc: false
