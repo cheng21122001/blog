@@ -754,7 +754,84 @@ details.toc .inner {
 }
 
 /* ===================================================
-   9. 窄屏
+   9. 拼贴诗
+   ---------------------------------------------------
+   图不按宽度铺满，按高度约束：一幅永远一屏内看得完，
+   不管原图是 4:5 还是 9:16，翻页的节奏都一样。
+   每幅套一圈纸边，白底作品才不会和纸色背景糊在一起。
+   =================================================== */
+
+.collage {
+    margin: 2.5rem 0 1rem;
+}
+
+/* 主题的 .md-content figure:not(:last-child) 特异性比裸类名高一档，
+   这里跟着同样的写法才压得住，否则幅间距会被压回 --content-gap */
+.collage .collage-plate {
+    margin: 0;
+}
+
+.collage .collage-plate:not(:last-child) {
+    margin-bottom: 4.5rem;
+}
+
+/* 整幅可点，但按钮本身不该有任何按钮长相 */
+.collage-open {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: zoom-in;
+    line-height: 0;
+}
+
+.collage-open img {
+    display: block;
+    margin: 0 auto;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 85vh;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--theme);
+}
+
+/* 深色下不动图，只把纸边提亮：白底作品看起来像贴在暗桌上的一张纸 */
+:root[data-theme="dark"] .collage-open img {
+    border-color: #3a3a3f;
+}
+
+/* display:flex 会盖掉 hidden 自带的 display:none，必须显式收回来，
+   否则遮罩一直铺在整页上，图片是隔着一层纸看的 */
+.collage-lightbox[hidden] {
+    display: none;
+}
+
+.collage-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3vmin;
+    background: rgba(var(--paper-rgb), 0.96);
+    cursor: zoom-out;
+}
+
+.collage-lightbox img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+/* ===================================================
+   10. 窄屏
    =================================================== */
 
 @media screen and (max-width: 768px) {
@@ -800,5 +877,16 @@ details.toc .inner {
         border-inline-start: 0;
         border-top: 1px solid var(--border);
         padding-inline-start: 0;
+    }
+}
+
+/* 手机上留给地址栏一点余地，幅间距也收一收 */
+@media screen and (max-width: 768px) {
+    .collage .collage-plate:not(:last-child) {
+        margin-bottom: 3rem;
+    }
+
+    .collage-open img {
+        max-height: 78vh;
     }
 }

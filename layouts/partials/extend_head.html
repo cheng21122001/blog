@@ -1,1 +1,32 @@
 <meta name="follow.it-verification-code" content="Rx8Y1jZ2T9lrHuLGL9BU"/>
+{{- if .HasShortcode "collage" }}
+<script>
+  // 拼贴诗：点任意一幅放大，再点一下或按 Esc 收回。
+  document.addEventListener('DOMContentLoaded', function () {
+    var box = document.getElementById('collageLightbox');
+    var big = document.getElementById('collageLightboxImg');
+    if (!box || !big) return;
+
+    function close() {
+      box.hidden = true;
+      big.src = '';
+      document.body.style.overflow = '';
+    }
+
+    document.querySelectorAll('.collage-open').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var img = btn.querySelector('img');
+        big.src = btn.dataset.src;
+        big.alt = img ? img.alt : '';
+        box.hidden = false;
+        document.body.style.overflow = 'hidden';
+      });
+    });
+
+    box.addEventListener('click', close);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !box.hidden) close();
+    });
+  });
+</script>
+{{- end }}

@@ -36,7 +36,10 @@
         {{- $n := len $ys }}
         {{- range $pi, $p := $ys }}
           {{- /* .Plain 经过智能排版后带字面的 "&ldquo;" 文本，先还原成真引号 */ -}}
-          {{- $ex := $p.Plain | plainify | chomp | htmlUnescape }}
+          {{- $ex := $p.Plain | plainify | chomp | htmlUnescape | strings.TrimSpace }}
+          {{- /* 纯图文章（拼贴诗）没有正文文字，退回 front matter 的 summary，
+                 否则时间线上是一个最小的点 + 点开一片空白 */ -}}
+          {{- if not $ex }}{{ $ex = $p.Params.summary | default "" }}{{ end }}
           {{- $t := $p.Title | plainify | htmlUnescape }}
           {{- $len := strings.CountRunes $ex }}
           {{- $sz := cond (lt $len 350) "is-s" (cond (ge $len 2000) "is-l" "is-m") }}

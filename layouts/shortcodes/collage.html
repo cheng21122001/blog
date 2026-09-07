@@ -1,0 +1,29 @@
+{{- /*
+  拼贴诗：把这篇文章文件夹里的图按文件名顺序纵向铺开，一张一幅。
+  用法：正文里单起一行写 collage 这个 shortcode，不需要任何参数。
+  图片放在文章自己的文件夹里（01.webp、02.webp……），改文件名即改顺序。
+  每幅的替代文字可在 front matter 里用 plates 列表逐幅指定，留空则自动编号。
+*/ -}}
+{{- $plates := sort (.Page.Resources.ByType "image") "Name" }}
+{{- with $plates }}
+<div class="collage">
+  {{- range $i, $p := . }}
+  {{- $n := add $i 1 }}
+  <figure class="collage-plate">
+    <button class="collage-open" type="button" data-src="{{ $p.RelPermalink }}"
+            aria-label="放大查看第 {{ $n }} 幅">
+      <img src="{{ $p.RelPermalink }}" width="{{ $p.Width }}" height="{{ $p.Height }}"
+           alt="{{ with (index $.Page.Params.plates $i) }}{{ . }}{{ else }}《{{ $.Page.Title }}》第 {{ $n }} 幅{{ end }}"
+           loading="{{ cond (eq $i 0) "eager" "lazy" }}" decoding="async">
+    </button>
+  </figure>
+  {{- end }}
+</div>
+
+<div class="collage-lightbox" id="collageLightbox" hidden>
+  <img id="collageLightboxImg" src="" alt="">
+</div>
+{{- end }}
+{{- /* 放大用的脚本在 partials/extend_head.html，不放这里：
+       写在正文里的话，.Plain 会把整段 JS 当成正文文字，
+       时间线的摘录和字数就全乱了。 */ -}}
