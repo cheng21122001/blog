@@ -1,561 +1,664 @@
 {{- define "main" }}
 
-{{- /* 时间正序：最早的在螺旋顶端，最新的在底端 */ -}}
+{{- /* 时间正序：最早的一篇是髓心，越往外越新，最外一圈是最新的一篇 */ -}}
 {{- $pages := (where site.RegularPages "Section" "posts").ByDate }}
 {{- $years := $pages.GroupByDate "2006" "asc" }}
 
-<div class="sp-root" id="spRoot">
+<div class="tr-root" id="trRoot">
 
   {{- /* 页名和顶部导航里的「时间」重复，画面上不再出现，只留给读屏和搜索引擎 */ -}}
   <h1 class="sr-only">{{ .Title }}</h1>
 
-  <div class="sp-stage" id="spStage">
-    <div class="sp-canvas" id="spCanvas">
-
-      <svg class="sp-svg" id="spSvg" aria-hidden="true" focusable="false">
-        <defs>
-          <linearGradient id="spFade" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2="1">
-            <stop class="sp-fade-stop" offset="0"   stop-opacity="1"/>
-            <stop class="sp-fade-stop" offset="0.5" stop-opacity=".45"/>
-            <stop class="sp-fade-stop" offset="1"   stop-opacity="0"/>
-          </linearGradient>
-        </defs>
-        <path id="spBack"  class="sp-strand sp-strand-back"  fill="none"/>
-        <path id="spFront" class="sp-strand sp-strand-front" fill="none"/>
-        {{- /* 最后一篇之后线还继续走一段，上面不再有圆点，末端淡出 */ -}}
-        <path id="spTail"  class="sp-strand sp-strand-tail"  fill="none"/>
-      </svg>
-
-      {{- range $yi, $y := $years }}
-      <span class="sp-year" data-count="{{ len $y.Pages }}" data-yi="{{ $yi }}">{{ $y.Key }}</span>
-      {{- end }}
-
-      {{- $gi := 0 }}
-      {{- range $yi, $y := $years }}
-        {{- $ys := $y.Pages.ByDate }}
-        {{- $n := len $ys }}
-        {{- range $pi, $p := $ys }}
-          {{- /* .Plain 经过智能排版后带字面的 "&ldquo;" 文本，先还原成真引号 */ -}}
-          {{- $ex := $p.Plain | plainify | chomp | htmlUnescape | strings.TrimSpace }}
-          {{- /* 纯图文章（拼贴诗）没有正文文字，退回 front matter 的 summary，
-                 否则时间线上是一个最小的点 + 点开一片空白 */ -}}
-          {{- if not $ex }}{{ $ex = $p.Params.summary | default "" }}{{ end }}
-          {{- $t := $p.Title | plainify | htmlUnescape }}
-          {{- $len := strings.CountRunes $ex }}
-          {{- $sz := cond (lt $len 350) "is-s" (cond (ge $len 2000) "is-l" "is-m") }}
-          {{- if $p.Params.pinned }}{{ $sz = "is-l" }}{{ end }}
-        <a class="sp-node {{ $sz }}" href="{{ $p.RelPermalink }}"
-           data-i="{{ $gi }}" data-yi="{{ $yi }}" data-t="{{ printf "%.5f" (div (add (float $pi) 0.5) (float $n)) }}"
-           data-date="{{ $p.Date.Format "2006.01.02" }}"
-           data-title="{{ $t }}"
-           data-excerpt="{{ if gt $len 160 }}{{ substr $ex 0 160 }}…{{ else }}{{ $ex }}{{ end }}">
-          <span class="sp-dot" aria-hidden="true"></span>
-          <span class="sp-cap">
-            <span class="sp-cap-date">{{ $p.Date.Format "2006.01.02" }}</span>
-            <span class="sp-cap-sep" aria-hidden="true">·</span>
-            <span class="sp-cap-title">{{ $t }}</span>
-          </span>
-        </a>
-          {{- $gi = add $gi 1 }}
-        {{- end }}
-      {{- end }}
-
-    </div>
+  <div class="tr-stage" id="trStage">
+    <svg class="tr-svg" id="trSvg" viewBox="-480 -480 960 960" aria-hidden="true" focusable="false">
+      <defs>
+        <mask id="trCracks" maskUnits="userSpaceOnUse" x="-480" y="-480" width="960" height="960">
+          <rect x="-480" y="-480" width="960" height="960" fill="#fff"/>
+          <g id="trCrackShapes" fill="#000"></g>
+        </mask>
+      </defs>
+      <g id="trView">
+        <g id="trTree" mask="url(#trCracks)"></g>
+        <g id="trYears" class="tr-years"></g>
+      </g>
+    </svg>
   </div>
+
+  <div class="tr-tip" id="trTip">
+    <p class="tr-tip-date" id="trTipDate"></p>
+    <p class="tr-tip-title" id="trTipTitle"></p>
+  </div>
+
+  <p class="tr-hint" id="trHint">悬停查看 · 点击详情 · 滚轮放大 · 双击复原</p>
+
+  {{- /* 有 JS 时藏起来，只给读屏和键盘 Tab 用；没有 JS 时就是一份竖排清单 */ -}}
+  <ol class="tr-list" id="trList">
+    {{- range $yi, $y := $years }}
+      {{- range $p := $y.Pages.ByDate }}
+        {{- /* .Plain 经过智能排版后带字面的 "&ldquo;" 文本，先还原成真引号 */ -}}
+        {{- $ex := $p.Plain | plainify | htmlUnescape | replaceRE `\s+` " " | strings.TrimSpace }}
+        {{- /* 纯图文章（拼贴诗）没有正文文字，退回 front matter 的 summary */ -}}
+        {{- if not $ex }}{{ $ex = $p.Params.summary | default $p.Title }}{{ end }}
+        {{- $t := $p.Title | plainify | htmlUnescape }}
+        {{- $len := strings.CountRunes $ex }}
+    <li>
+      <a class="tr-node" href="{{ $p.RelPermalink }}"
+         data-yi="{{ $yi }}"
+         data-year="{{ $y.Key }}"
+         data-len="{{ $len }}"
+         data-date="{{ $p.Date.Format "2006.01.02" }}"
+         data-title="{{ $t }}"
+         data-excerpt="{{ if gt $len 160 }}{{ substr $ex 0 160 }}…{{ else }}{{ $ex }}{{ end }}"
+         data-ring="{{ substr $ex 0 600 }}">
+        <span class="tr-l-date">{{ $p.Date.Format "2006.01.02" }}</span>
+        <span class="tr-l-title">{{ $t }}</span>
+      </a>
+    </li>
+      {{- end }}
+    {{- end }}
+  </ol>
 </div>
 
 {{- /* 详情面板：宽屏从右侧滑入，手机从底部滑出 */ -}}
-<aside class="sp-panel" id="spPanel" aria-live="polite">
-  <div class="sp-panel-in">
-    <p class="sp-p-date" id="spPDate"></p>
-    <h2 class="sp-p-title" id="spPTitle"></h2>
-    <p class="sp-p-ex" id="spPEx"></p>
-    {{- /* 链接先不写 href：主题会给所有 href="#" 的链接绑上页内滚动、拦掉点击，选中文章时再由脚本填上 */ -}}
-    <a class="sp-p-go" id="spPGo">阅读全文</a>
-  </div>
+<aside class="tr-panel" id="trPanel" aria-live="polite">
+  <button type="button" class="tr-p-x" id="trPX" aria-label="关闭">×</button>
+  <p class="tr-p-date" id="trPDate"></p>
+  <h2 class="tr-p-title" id="trPTitle"></h2>
+  <p class="tr-p-ex" id="trPEx"></p>
+  {{- /* 链接先不写 href：主题会给所有 href="#" 的链接绑上页内滚动、拦掉点击，选中文章时再由脚本填上 */ -}}
+  <a class="tr-p-go" id="trPGo">阅读全文</a>
 </aside>
 
 <style>
 /* ── 这一页专属：颜色全部取自站点令牌，跟随右上角的主题切换 ── */
-body{ background:var(--theme); }
-
-/* 站点导航栏（档案间 / 搜索 · 标签 · 时间线）在这一页钉住不动 */
 .header{
   position:sticky; top:0; z-index:20;
   background:var(--theme);
 }
+body.tr-page{ overflow:hidden; background:var(--theme); }
+body.tr-page .footer,
+body.tr-page .top-link{ display:none !important; }
 
-.sp-root,
-.sp-panel{
-  --sp-bg:var(--theme);
-  --sp-ink:var(--primary);
-  --sp-mute:var(--secondary);
-  --sp-hair:var(--border);
-  --sp-strand:#bdbab3;
-  --sp-strand-back:var(--tertiary);
+.tr-root,
+.tr-panel{
   font-family:var(--font-sans);
   font-weight:300;
 }
-:root[data-theme="dark"] .sp-root,
-:root[data-theme="dark"] .sp-panel{
-  --sp-strand:#5e5c58;
-}
 
-/* 撑满整个视窗宽度（跳出 PaperMod 的 720px 正文栏） */
-.sp-root{
-  position:relative;
-  width:100vw;
-  margin-left:calc(50% - 50vw);
-  overflow-x:clip;
+/* ── 舞台：铺满导航栏以下的整个视窗 ── */
+.tr-root.ready{
+  position:fixed; left:0; right:0; bottom:0;
+  top:var(--tr-top,64px);
+  z-index:5;
+  background:var(--theme);
+  overflow:hidden;
 }
+.tr-stage{
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .45s cubic-bezier(.22,.61,.36,1);
+}
+.tr-root.shift .tr-stage{ transform:translateX(var(--tr-shift,0px)); }
+.tr-svg{
+  width:var(--tr-size,600px); height:var(--tr-size,600px);
+  display:block; overflow:visible;
+  touch-action:none;
+  cursor:default;
+  user-select:none; -webkit-user-select:none;
+}
+.tr-svg.zoomed{ cursor:grab; }
+.tr-svg.dragging{ cursor:grabbing; }
+.tr-root:not(.ready) .tr-stage,
+.tr-root:not(.ready) .tr-tip,
+.tr-root:not(.ready) .tr-hint{ display:none; }
 
-/* ── 螺旋舞台 ── */
-.sp-stage{
-  position:relative;
-  /* 上下留白，保证首尾节点都能走到视窗中线；
-     左边让开钉住的标题，右边让开详情面板 */
-  /* 底部靠螺旋尾巴撑开（见脚本里的 TAIL），这里只留一点收尾的余量 */
-  padding:30vh min(430px,34vw) 10vh min(160px,12vw);
+/* 年轮文字：衬线，早材深、晚材浅 */
+.tr-ring{
+  fill:var(--primary);
+  font-family:var(--font-serif);
+  opacity:.82;
+  transition:opacity .25s ease;
 }
-.sp-canvas{
-  position:relative;
-  width:min(560px,100%);
-  margin:0 auto;
+.tr-ring.alt{ opacity:.56; }
+.tr-pith{ fill:var(--primary); }
+.tr-bark path{ fill:var(--primary); opacity:.86; transition:opacity .25s ease; }
+.tr-bark text{
+  fill:var(--theme);
+  font-family:var(--font-serif);
+  font-size:8.5px;
+  letter-spacing:.06em;
 }
-.sp-svg{
-  position:absolute; left:0; top:0;
-  pointer-events:none; overflow:visible;
-}
-.sp-strand{
-  stroke-linecap:round; stroke-linejoin:round;
-  vector-effect:non-scaling-stroke;
-}
-.sp-strand-front{ stroke:var(--sp-strand);      stroke-width:1.5; }
-.sp-strand-back { stroke:var(--sp-strand-back); stroke-width:1.1; }
-.sp-strand-tail { stroke:url(#spFade); stroke-width:1.5; }
-.sp-fade-stop   { stop-color:var(--sp-strand); }
-
-/* 年份：安静的浅灰刻度 */
-.sp-year{
-  position:absolute; left:0; top:0;
-  font-size:.68rem; letter-spacing:.22em; color:var(--sp-mute);
+.tr-years text{
+  fill:var(--secondary);
+  font-size:8px;
+  letter-spacing:.12em;
   font-variant-numeric:tabular-nums;
-  pointer-events:none; white-space:nowrap;
-  opacity:.75;
 }
-.sp-root:not(.ready) .sp-year{ display:none; }
 
-/* ── 节点：小行星圆点 ── */
-.sp-root.ready .sp-node{
+/* 悬停或选中一圈：这一圈加深，其余变淡 */
+.tr-svg.focus .tr-ring,
+.tr-svg.focus .tr-bark path{ opacity:.14; }
+.tr-svg.focus .tr-ring.on{ opacity:1; }
+.tr-svg.focus .tr-bark path.on{ opacity:1; }
+
+/* 打开时从髓心往外一圈圈长出来 */
+.tr-grow{
+  transform-origin:0 0;
+  animation:tr-grow .7s cubic-bezier(.22,.61,.36,1) both;
+}
+@keyframes tr-grow{
+  from{ opacity:0; transform:scale(.86); }
+  to  { opacity:1; transform:none; }
+}
+
+/* 悬停小卡片 */
+.tr-tip{
   position:absolute; left:0; top:0;
-  display:block; width:0; height:0;
-  text-decoration:none;
+  max-width:240px;
+  padding:.55rem .8rem .6rem;
+  background:var(--theme);
+  border:1px solid var(--border);
+  border-radius:2px;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .15s ease;
 }
-.sp-root.ready .sp-dot{
-  position:absolute; left:0; top:0;
-  display:block; box-sizing:border-box;
-  border-radius:50%;
-  background:var(--sp-ink);
-  opacity:.42;
-  transition:transform .28s cubic-bezier(.22,.61,.36,1), opacity .28s ease;
+.tr-tip.show{ opacity:1; }
+.tr-tip p{ margin:0; }
+.tr-tip-date{
+  font-size:.64rem; letter-spacing:.14em; color:var(--secondary);
+  font-variant-numeric:tabular-nums;
 }
-/* 空心小圆：短句随笔 */
-.sp-root.ready .is-s  .sp-dot{ width:7px;  height:7px;  margin:-3.5px 0 0 -3.5px; background:var(--sp-bg); border:1.4px solid var(--sp-ink); }
-/* 实心中圆：普通随笔 */
-.sp-root.ready .is-m  .sp-dot{ width:11px; height:11px; margin:-5.5px 0 0 -5.5px; }
-/* 加粗实心大圆：深度长文 */
-.sp-root.ready .is-l  .sp-dot{ width:17px; height:17px; margin:-8.5px 0 0 -8.5px; }
+.tr-tip-title{
+  margin-top:.3rem !important;
+  font-family:var(--font-serif); font-size:.9rem; font-weight:600;
+  line-height:1.5; color:var(--primary); letter-spacing:.03em;
+}
 
-/* 高亮：放大 + 外圈 */
-.sp-root.ready .sp-node.on .sp-dot{ opacity:1; transform:scale(1.45); }
-.sp-root.ready .sp-node.on::before{
-  content:''; position:absolute; left:0; top:0;
-  width:40px; height:40px; margin:-20px 0 0 -20px;
-  border:1px solid var(--sp-ink); border-radius:50%;
-  opacity:.75;
-  animation:sp-ring .32s cubic-bezier(.22,.61,.36,1);
+.tr-hint{
+  position:absolute; left:0; right:0; bottom:14px;
+  margin:0; text-align:center;
+  font-size:.66rem; letter-spacing:.22em; color:var(--secondary);
+  opacity:.75; pointer-events:none;
 }
-@keyframes sp-ring{ from{ transform:scale(.6); opacity:0 } to{ transform:scale(1); opacity:.75 } }
 
-/* 圆点旁的极简标注：日期 · 标题 */
-.sp-root.ready .sp-cap{
-  position:absolute; top:0; left:0;
-  display:block; max-width:190px;
-  font-size:.7rem; line-height:1.3; letter-spacing:.02em;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  opacity:.42;
-  transition:opacity .28s ease;
+/* 键盘和读屏用的清单：看不见，但 Tab 得到 */
+.tr-root.ready .tr-list{
+  position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
 }
-.sp-root.ready .sp-node.on .sp-cap{ opacity:1; }
-.sp-cap-date{ color:var(--sp-mute); font-variant-numeric:tabular-nums; }
-.sp-cap-sep{ color:var(--sp-mute); margin:0 .3em; }
-.sp-cap-title{ color:var(--sp-ink); font-weight:600; }
-.sp-root.ready .sp-node.side-r .sp-cap{ transform:translate(18px,-.65em); text-align:left; }
-.sp-root.ready .sp-node.side-l .sp-cap{ transform:translate(calc(-100% - 18px),-.65em); text-align:right; }
 
 /* ── 详情面板 ── */
-.sp-panel{
+.tr-panel{
   position:fixed; z-index:30;
-  right:max(3vw,18px); top:50%;
+  right:max(3vw,18px);
+  top:calc(var(--tr-top,64px) + (100vh - var(--tr-top,64px)) / 2);
   width:min(340px,34vw);
   transform:translate(calc(100% + max(3vw,18px)),-50%);
   padding:1.6rem 1.5rem;
-  background:var(--sp-bg);
-  border:1px solid var(--sp-hair);
+  background:var(--theme);
+  border:1px solid var(--border);
   border-radius:2px;
   opacity:0; pointer-events:none;
   transition:transform .45s cubic-bezier(.22,.61,.36,1), opacity .3s ease;
 }
-.sp-panel.open{ transform:translate(0,-50%); opacity:1; pointer-events:auto; }
-.sp-p-date{
-  margin:0; font-size:.72rem; letter-spacing:.14em; color:var(--sp-mute);
+.tr-panel.open{ transform:translate(0,-50%); opacity:1; pointer-events:auto; }
+.tr-p-x{
+  position:absolute; top:.8rem; right:.8rem;
+  width:28px; height:28px;
+  display:grid; place-items:center;
+  font:inherit; font-size:1rem; line-height:1; color:var(--secondary);
+  background:none; border:1px solid var(--border); border-radius:999px;
+  cursor:pointer;
+}
+.tr-p-x:hover{ color:var(--primary); border-color:var(--primary); }
+.tr-p-date{
+  margin:0; font-size:.72rem; letter-spacing:.14em; color:var(--secondary);
   font-variant-numeric:tabular-nums;
 }
-.sp-p-title{
-  margin:.7rem 0 0; font-family:var(--font-serif);
+.tr-p-title{
+  margin:.7rem 2rem 0 0; font-family:var(--font-serif);
   font-size:1.15rem; font-weight:600; line-height:1.6;
-  color:var(--sp-ink); letter-spacing:.04em;
+  color:var(--primary); letter-spacing:.04em;
 }
-.sp-p-ex{
+.tr-p-ex{
   margin:.9rem 0 0; font-family:var(--font-serif);
-  font-size:.85rem; line-height:1.95; color:var(--sp-mute);
+  font-size:.85rem; line-height:1.95; color:var(--secondary);
   display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden;
 }
-.sp-p-go{
+.tr-p-go{
   display:inline-block; margin-top:1.4rem;
   padding:.5rem 1.4rem;
-  font-size:.74rem; letter-spacing:.16em; color:var(--sp-ink);
-  border:1px solid var(--sp-ink); border-radius:999px;
-  text-decoration:none;
+  font-size:.74rem; letter-spacing:.16em; color:var(--primary);
+  border:1px solid var(--primary); border-radius:999px;
+  text-decoration:none; cursor:pointer;
   transition:background .2s ease, color .2s ease;
 }
-.sp-p-go:hover{ background:var(--sp-ink); color:var(--sp-bg); }
-/* 没有 JS 时不显示面板 */
-.sp-root:not(.ready) ~ .sp-panel{ display:none; }
+.tr-p-go:hover{ background:var(--primary); color:var(--theme); }
+.tr-root:not(.ready) ~ .tr-panel{ display:none; }
 
-/* ── 平板/窄屏 ── */
 @media (max-width:1080px){
-  .sp-panel{ width:min(300px,40vw); padding:1.3rem 1.2rem; }
-  .sp-root.ready .sp-cap{ max-width:150px; font-size:.66rem; }
+  .tr-panel{ width:min(300px,40vw); padding:1.3rem 1.2rem; }
 }
 
-/* ── 手机竖屏：面板从底部滑出 ── */
+/* ── 手机竖屏：面板从底部滑出，树往上让 ── */
 @media (max-width:768px){
-  .sp-stage{ padding:30vh 0 10vh; }
-  .sp-canvas{ width:92vw; }
-  .sp-root.ready .sp-cap{ max-width:40vw; font-size:.68rem; }
-  /* 手机上面板压矮一点，别盖掉太多轴线 */
-  .sp-panel{
+  .tr-root.shift .tr-stage{ transform:translateY(var(--tr-shift,0px)); }
+  .tr-hint{ font-size:.6rem; letter-spacing:.16em; }
+  .tr-panel{
     right:0; left:0; top:auto; bottom:0;
-    width:auto; max-height:34vh; overflow-y:auto;
+    width:auto; max-height:36vh; overflow-y:auto;
     padding:.85rem 1.2rem calc(.9rem + env(safe-area-inset-bottom));
-    border:none; border-top:1px solid var(--sp-hair); border-radius:0;
+    border:none; border-top:1px solid var(--border); border-radius:0;
     transform:translateY(100%);
   }
-  .sp-panel.open{ transform:translateY(0); }
-  .sp-p-date{ font-size:.66rem; }
-  .sp-p-title{ font-size:.98rem; margin-top:.4rem; }
-  .sp-p-ex{
-    -webkit-line-clamp:2;
-    font-size:.75rem; line-height:1.7; margin-top:.5rem;
-  }
-  .sp-p-go{ margin-top:.85rem; padding:.38rem 1.1rem; font-size:.7rem; }
+  .tr-panel.open{ transform:translateY(0); }
+  .tr-p-date{ font-size:.66rem; }
+  .tr-p-title{ font-size:.98rem; margin-top:.4rem; }
+  .tr-p-ex{ -webkit-line-clamp:2; font-size:.75rem; line-height:1.7; margin-top:.5rem; }
+  .tr-p-go{ margin-top:.85rem; padding:.38rem 1.1rem; font-size:.7rem; }
 }
 
 @media (prefers-reduced-motion: reduce){
-  .sp-root.ready .sp-dot,
-  .sp-root.ready .sp-cap,
-  .sp-panel{ transition:none; }
-  .sp-root.ready .sp-node.on::before{ animation:none; }
+  .tr-grow{ animation:none; }
+  .tr-stage, .tr-panel, .tr-tip{ transition:none; }
 }
 
 /* ── 无 JS 降级：老老实实一条竖排清单 ── */
-.sp-root:not(.ready) .sp-svg{ display:none; }
-.sp-root:not(.ready) .sp-canvas{ width:min(680px,90vw); padding:2rem 0; }
-.sp-root:not(.ready) .sp-stage{ padding:0 0 3rem; }
-.sp-root:not(.ready) .sp-node{
-  display:block; padding:.7rem 0; border-bottom:1px solid var(--sp-hair);
-  text-decoration:none;
+.tr-root:not(.ready) .tr-list{
+  width:min(680px,90vw); margin:0 auto; padding:2rem 0 3rem;
+  list-style:none;
 }
-.sp-root:not(.ready) .sp-dot{ display:none; }
-.sp-root:not(.ready) .sp-cap-date{ margin-right:.6em; }
+.tr-root:not(.ready) .tr-node{
+  display:block; padding:.7rem 0; border-bottom:1px solid var(--border);
+  text-decoration:none; font-size:.8rem;
+}
+.tr-l-date{ color:var(--secondary); margin-right:.6em; font-variant-numeric:tabular-nums; }
+.tr-l-title{ color:var(--primary); font-weight:600; }
 </style>
 
 <script>
 (function(){
-  var root  = document.getElementById('spRoot');
-  var stage = document.getElementById('spStage');
-  var canvas= document.getElementById('spCanvas');
-  var svg   = document.getElementById('spSvg');
-  var pFront= document.getElementById('spFront');
-  var pBack = document.getElementById('spBack');
-  var pTail = document.getElementById('spTail');
-  var fade  = document.getElementById('spFade');
-  var panel = document.getElementById('spPanel');
-  if(!root || !canvas || !panel) return;
+  var root  = document.getElementById('trRoot');
+  var svg   = document.getElementById('trSvg');
+  var panel = document.getElementById('trPanel');
+  if(!root || !svg || !panel || !svg.createSVGPoint) return;
 
-  var nodes = Array.prototype.slice.call(canvas.querySelectorAll('.sp-node'));
-  var yearEls = Array.prototype.slice.call(canvas.querySelectorAll('.sp-year'));
-  if(!nodes.length) return;
+  var links = Array.prototype.slice.call(document.querySelectorAll('#trList .tr-node'));
+  if(!links.length) return;
 
-  var pDate = document.getElementById('spPDate');
-  var pTitle= document.getElementById('spPTitle');
-  var pEx   = document.getElementById('spPEx');
-  var pGo   = document.getElementById('spPGo');
+  function $(id){ return document.getElementById(id); }
+  var stage = $('trStage'), view = $('trView'), tree = $('trTree'),
+      crackEl = $('trCrackShapes'), yearsEl = $('trYears');
+  var tip = $('trTip'), tipDate = $('trTipDate'), tipTitle = $('trTipTitle');
+  var pDate = $('trPDate'), pTitle = $('trPTitle'), pEx = $('trPEx'), pGo = $('trPGo'), pX = $('trPX');
 
-  var TAU = Math.PI * 2;
+  var NS = 'http://www.w3.org/2000/svg';
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var mobile = false;
-  var MIN_TURN = 520, PER_POST = 72;   // 一圈的最小高度 / 每篇再撑开多少
-  var BULGE = 0.62;                    // 竖直方向的鼓起，必须 <1 才能保证 y 单调递增
 
-  /* 每 12 篇绕一圈：文章多的年份自动多绕几圈，年份靠旁边的年份标记区分。
-     （填 0 就变回严格的"一年一圈"，写得多的年份会被拉成一条很缓的长弧。） */
-  var PER_LOOP = 12;
+  function el(parent, name, attrs, text){
+    var e = document.createElementNS(NS, name);
+    for(var k in attrs) e.setAttribute(k, attrs[k]);
+    if(text != null) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  function f1(v){ return v.toFixed(1); }
+  function polar(r, a){ return f1(r * Math.sin(a)) + ',' + f1(-r * Math.cos(a)); }
 
-  var years = yearEls.map(function(el){
-    return { el: el, count: +el.getAttribute('data-count') || 1,
-             top:0, loops:1, loopH:0, turn:0, ry:0, gap:0, lut:null };
-  });
-
-  var cx = 0, amp = 0, totalH = 0, TAIL = 0, tailT = 1;
-
-  /* t：0~1 走完这一年（可能不止一圈） */
-  function pointAt(yi, t){
-    var y = years[yi];
-    var th = TAU * y.loops * t;
-    return {
-      x: cx + amp * Math.sin(th),
-      y: y.top + t * y.turn + y.ry * (1 - Math.cos(th)),
-      z: Math.cos(th)
+  /* 固定种子的随机数：裂缝和树皮每次打开都一样 */
+  function hash(s){
+    var h = 2166136261;
+    for(var i=0;i<s.length;i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+    return h >>> 0;
+  }
+  function rng(seed){
+    return function(){
+      seed = (seed + 0x6D2B79F5) | 0;
+      var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
 
-  /* 圆圈鼓起来的地方走得快、瘪下去的地方走得慢，直接按角度均分的话
-     圆点在竖直方向就会忽疏忽密。这里反过来：先均分竖直距离，再回推角度。 */
-  function buildLut(yr){
-    var n = 96 * yr.loops;
-    var a = new Float64Array(n + 1);
-    for(var i=0;i<=n;i++){
-      var th = TAU * yr.loops * i / n;
-      a[i] = (i/n) * yr.turn + yr.ry * (1 - Math.cos(th));
-    }
-    yr.lut = a;
-  }
-  function tAtOffset(yi, dy){
-    var a = years[yi].lut, n = a.length - 1, lo = 0, hi = n;
-    while(lo < hi){
-      var m = (lo + hi) >> 1;
-      if(a[m] < dy) lo = m + 1; else hi = m;
-    }
-    if(lo === 0) return 0;
-    var span = a[lo] - a[lo-1];
-    var frac = span > 0 ? (dy - a[lo-1]) / span : 0;
-    return (lo - 1 + frac) / n;
+  var posts = links.map(function(a, i){
+    return {
+      i: i, el: a,
+      yi: +a.getAttribute('data-yi'),
+      year: a.getAttribute('data-year'),
+      len: +a.getAttribute('data-len') || 1,
+      date: a.getAttribute('data-date'),
+      title: a.getAttribute('data-title'),
+      excerpt: a.getAttribute('data-excerpt'),
+      ring: a.getAttribute('data-ring') || a.getAttribute('data-title'),
+      href: a.getAttribute('href')
+    };
+  });
+  var N = posts.length;
+
+  /* ── 几何：单位是 viewBox 里的数，整棵树固定缩放到一屏 ── */
+  var PITH = 10, WOOD = 396, BARK_IN = 400, GAP = 1.2;
+
+  /* 每圈的厚度随字数浮动（开平方后截上下限），加起来正好铺满半径。
+     文章越多，每圈越薄——字看不清时靠放大 */
+  var weights = posts.map(function(p){ return Math.max(9, Math.min(46, Math.sqrt(p.len))); });
+  var wsum = weights.reduce(function(s, w){ return s + w; }, 0);
+  var r = PITH + 3;
+  posts.forEach(function(p, i){
+    var t = (WOOD - PITH - 3) * weights[i] / wsum;
+    p.a = r; p.b = r + t; r += t;
+  });
+
+  function circlePath(rad){
+    return 'M0,' + f1(-rad) + 'A' + f1(rad) + ',' + f1(rad) + ' 0 1 1 0,' + f1(rad) +
+           'A' + f1(rad) + ',' + f1(rad) + ' 0 1 1 0,' + f1(-rad);
   }
 
-  function buildStrand(){
-    /* 按"离观者远近"把线拆成前后两条：远的那半更淡，看起来才像一根盘着的线 */
-    var runs = [], cur = null, prevSign = null;
-    for(var yi=0; yi<years.length; yi++){
-      var steps = Math.max(90 * years[yi].loops, Math.round(years[yi].turn / 5));
-      for(var s=0; s<=steps; s++){
-        if(yi > 0 && s === 0) continue;          // 与上一圈的末点重合，跳过
-        var p = pointAt(yi, s/steps);
-        var sign = p.z >= 0 ? 1 : -1;
-        if(sign !== prevSign){
-          if(cur) cur.pts.push(p);               // 让前后两段在交界处接上，不留缝
-          cur = { sign: sign, pts: [] };
-          runs.push(cur);
-          prevSign = sign;
-        }
-        cur.pts.push(p);
+  /* ── 年轮 ── */
+  var ringEls = [];
+  var stagger = reduced ? 0 : 1800 / N;
+  el(tree, 'circle', { class: 'tr-pith', r: PITH * 0.55, cx: 0, cy: 0 });
+  posts.forEach(function(p, i){
+    var t = p.b - p.a - GAP;
+    var fs = Math.max(1.2, t * 0.8);
+    var base = p.a + GAP / 2 + t * 0.14;           // 字从基线往外长
+    var C = 2 * Math.PI * base;
+    var n = Math.max(3, Math.floor(C / (fs * 1.04)));
+    var txt = p.ring;
+    while(txt.length < n) txt += '　' + p.ring;
+    txt = Array.from(txt).slice(0, n).join('');
+
+    var g = el(tree, 'g', { class: 'tr-ring' + (i % 2 ? ' alt' : '') });
+    var grow = el(g, 'g', { class: 'tr-grow', style: 'animation-delay:' + Math.round(i * stagger) + 'ms' });
+    var pid = 'trRing' + i;
+    el(grow, 'path', { id: pid, d: circlePath(base), fill: 'none' });
+    var text = el(grow, 'text', { 'font-size': f1(fs) });
+    var tp = el(text, 'textPath', { href: '#' + pid, textLength: f1(C - fs * 0.6), lengthAdjust: 'spacing' }, txt);
+    tp.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', '#' + pid);
+    ringEls.push(g);
+  });
+
+  /* ── 树皮：一篇一组，每组几根长短不一的条，中间那根竖写标题 ── */
+  var bark = el(tree, 'g', { class: 'tr-bark' });
+  var barkGrow = el(bark, 'g', { class: 'tr-grow', style: 'animation-delay:' + Math.round(N * stagger) + 'ms' });
+  var barkEls = [];
+  var slot = 2 * Math.PI / N;
+  var br = rng(hash('bark'));
+  posts.forEach(function(p, i){
+    var chars = Array.from(p.title).slice(0, 5);
+    var need = chars.length * 9 + 12;
+    var bars = Math.max(2, Math.round(slot * BARK_IN / 24));
+    var mid = Math.floor(bars / 2);
+    var gapA = 0.0035;
+    var grp = [];
+    for(var k=0;k<bars;k++){
+      var a1 = i * slot + k * slot / bars + gapA;
+      var a2 = i * slot + (k + 1) * slot / bars - gapA;
+      var L = k === mid ? Math.max(need, 34) : 16 + br() * 26;
+      var r2 = BARK_IN + L;
+      var d = 'M' + polar(BARK_IN, a1) + 'L' + polar(r2, a1) +
+              'A' + f1(r2) + ',' + f1(r2) + ' 0 0 1 ' + polar(r2, a2) +
+              'L' + polar(BARK_IN, a2) +
+              'A' + BARK_IN + ',' + BARK_IN + ' 0 0 0 ' + polar(BARK_IN, a1) + 'Z';
+      var path = el(barkGrow, 'path', { d: d });
+      path._post = i;
+      grp.push(path);
+      if(k === mid){
+        /* 标题沿半径方向写：右半边从里往外读，左半边从外往里读，字都是正的 */
+        var am = (a1 + a2) / 2, deg = am * 180 / Math.PI;
+        var left = deg > 180;
+        var tx = el(barkGrow, 'text', {
+          transform: 'rotate(' + f1(left ? deg + 90 : deg - 90) + ')',
+          x: f1(left ? -(BARK_IN + 6) : BARK_IN + 6),
+          y: 3,
+          'text-anchor': left ? 'end' : 'start'
+        }, chars.join(''));
+        tx.style.pointerEvents = 'none';
       }
     }
-    var d = { 1:'', '-1':'' };
-    runs.forEach(function(r){
-      if(r.pts.length < 2) return;
-      d[r.sign] += 'M' + r.pts.map(function(p){
-        return p.x.toFixed(1) + ',' + p.y.toFixed(1);
-      }).join('L');
-    });
-    pFront.setAttribute('d', d[1] || '');
-    pBack.setAttribute('d', d['-1'] || '');
+    barkEls.push(grp);
+    p.a1 = i * slot; p.a2 = (i + 1) * slot;
+  });
 
-    /* 尾巴：最后一篇之后线照着同样的螺旋继续走，上面不放圆点，末端淡出 */
-    var li = years.length - 1;
-    var tsteps = Math.max(40, Math.round(TAIL / 5));
-    var tp = [];
-    for(var k=0; k<=tsteps; k++) tp.push(pointAt(li, 1 + (tailT - 1) * k / tsteps));
-    pTail.setAttribute('d', 'M' + tp.map(function(p){
-      return p.x.toFixed(1) + ',' + p.y.toFixed(1);
-    }).join('L'));
-    fade.setAttribute('y1', tp[0].y.toFixed(1));
-    fade.setAttribute('y2', tp[tp.length-1].y.toFixed(1));
+  /* ── 裂缝：从外缘往里的窄楔形，边缘带一点锯齿 ── */
+  var cr = rng(hash('cracks'));
+  var OUT = BARK_IN + 80;
+  [[-0.72, 0.48], [0.62, 0.72], [2.62, 0.30], [3.72, 0.62], [5.02, 0.78]].forEach(function(c){
+    var ang = c[0] + (cr() - 0.5) * 0.25;
+    var rEnd = WOOD * c[1];
+    var w0 = 11 + cr() * 8;
+    var steps = 16, side1 = [], side2 = [];
+    for(var s=0;s<=steps;s++){
+      var rr = OUT - (OUT - rEnd) * s / steps;
+      var half = w0 * Math.pow(1 - s / steps, 0.9) + 0.4;
+      var jit = (cr() - 0.5) * 3;
+      var nx = Math.cos(ang), ny = Math.sin(ang);    // 垂直于半径的方向
+      var cx = rr * Math.sin(ang) + jit * nx * 0.4, cy = -rr * Math.cos(ang) + jit * ny * 0.4;
+      side1.push(f1(cx + nx * half) + ',' + f1(cy + ny * half));
+      side2.unshift(f1(cx - nx * half) + ',' + f1(cy - ny * half));
+    }
+    el(crackEl, 'polygon', { points: side1.concat(side2).join(' ') });
+  });
+
+  /* 右侧一道直通髓心的细缝，年份写在缝里 */
+  el(crackEl, 'polygon', { points: [
+    f1(PITH + 6) + ',-2.5', f1(OUT) + ',-8', f1(OUT) + ',8', f1(PITH + 6) + ',2.5'
+  ].join(' ') });
+  /* 两个年份挨得太近时，后一个错开写到缝的下沿 */
+  var lastX = -99, low = false;
+  posts.forEach(function(p, i){
+    if(i > 0 && posts[i-1].yi === p.yi) return;
+    low = p.a - lastX < 26 ? !low : false;
+    lastX = p.a;
+    el(yearsEl, 'text', { x: f1(p.a + 1), y: low ? 13 : 2.8 }, p.year);
+  });
+
+  /* ── 视图：缩放与平移 ── */
+  var zs = 1, ztx = 0, zty = 0;
+  function applyView(){
+    view.setAttribute('transform', 'translate(' + f1(ztx) + ' ' + f1(zty) + ') scale(' + zs.toFixed(3) + ')');
+    svg.classList.toggle('zoomed', zs > 1.01);
+  }
+  function clampView(){
+    if(zs <= 1.001){ zs = 1; ztx = zty = 0; return; }
+    var lim = 480 * (zs - 1) + 60;
+    ztx = Math.max(-lim, Math.min(lim, ztx));
+    zty = Math.max(-lim, Math.min(lim, zty));
+  }
+  function svgPoint(cx, cy, target){
+    var pt = svg.createSVGPoint();
+    pt.x = cx; pt.y = cy;
+    return pt.matrixTransform((target || svg).getScreenCTM().inverse());
+  }
+  function zoomAt(cx, cy, factor){
+    var p = svgPoint(cx, cy);
+    var ns = Math.max(1, Math.min(6, zs * factor));
+    ztx = p.x - (p.x - ztx) * ns / zs;
+    zty = p.y - (p.y - zty) * ns / zs;
+    zs = ns;
+    clampView();
+    applyView();
   }
 
-  function layout(){
+  /* ── 尺寸：树占满舞台较短的一边 ── */
+  function resize(){
     mobile = window.matchMedia('(max-width:768px)').matches;
-    MIN_TURN = mobile ? 440 : 520;
-    PER_POST = mobile ? 60 : 72;
-
-    var W = canvas.clientWidth;
-    if(mobile){ amp = Math.min(96, W * 0.24); cx = Math.max(amp + 20, W * 0.29); }
-    else      { amp = Math.min(185, W * 0.34); cx = W / 2; }
-
-    var y = 0;
-    years.forEach(function(yr){
-      yr.loops = PER_LOOP > 0 ? Math.max(1, Math.ceil(yr.count / PER_LOOP)) : 1;
-      yr.turn  = Math.max(MIN_TURN * yr.loops, yr.count * PER_POST);
-      yr.loopH = yr.turn / yr.loops;
-      yr.top   = y;
-      yr.ry    = BULGE * yr.loopH / TAU;
-      yr.gap   = yr.turn / yr.count;              // 这一年里两篇之间的竖直间距
-      buildLut(yr);
-      y += yr.turn;
-    });
-    totalH = y;
-    /* 尾巴替代原来的大片底部留白：最后一篇之下还能滚半屏多，线一直延伸下去。
-       曲线本身还带着上下鼓起的偏移，画布高度按尾巴真正的落点算，别把末端截掉。 */
-    TAIL = Math.max(320, Math.round(window.innerHeight * 0.55));
-    tailT = 1 + TAIL / years[years.length - 1].turn;
-
-    var full = Math.ceil(pointAt(years.length - 1, tailT).y) + 2;
-    canvas.style.height = full + 'px';
-    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + full);
-    svg.setAttribute('width', W);
-    svg.setAttribute('height', full);
-    buildStrand();
-
-    years.forEach(function(yr){
-      var p = pointAt(years.indexOf(yr), 0);
-      yr.el.style.transform = 'translate(' +
-        (mobile ? 0 : Math.max(0, p.x - amp - 52)) + 'px,' + (p.y - 8) + 'px)';
-    });
-
-    /* 标注默认甩向圆点外侧，但右侧不能顶到详情面板上——
-       算出面板左边缘，放不下就改甩到左边。 */
-    var capW = parseFloat(getComputedStyle(nodes[0].querySelector('.sp-cap')).maxWidth) || 190;
-    var vw = document.documentElement.clientWidth;
-    var panelW = vw <= 1080 ? Math.min(300, vw * 0.40) : Math.min(340, vw * 0.34);
-    var rightLimit = mobile ? Infinity
-      : vw - panelW - Math.max(vw * 0.03, 18) - 14 - canvas.getBoundingClientRect().left;
-
-    nodes.forEach(function(el){
-      var yi = +el.getAttribute('data-yi');
-      var yr = years[yi];
-      var p = pointAt(yi, tAtOffset(yi, (+el.getAttribute('data-t')) * yr.turn));
-      var reach = Math.max(70, yr.gap * 0.8);
-      el.style.transform = 'translate(' + p.x.toFixed(1) + 'px,' + p.y.toFixed(1) + 'px)';
-      var right = mobile || (p.x >= cx && p.x + 18 + capW <= rightLimit);
-      el.classList.toggle('side-r', right);
-      el.classList.toggle('side-l', !right);
-      el._y = p.y;
-      el._reach = reach;
-    });
-
-    measure();
+    var header = document.querySelector('.header');
+    var top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+    document.documentElement.style.setProperty('--tr-top', top + 'px');
+    var W = root.clientWidth, H = root.clientHeight;
+    var size = Math.floor(Math.min(W - 24, H - 56) * (mobile ? 1 : 0.94));
+    root.style.setProperty('--tr-size', Math.max(240, size) + 'px');
+    $('trHint').textContent = mobile ? '点按查看 · 双指放大 · 双击复原'
+                                     : '悬停查看 · 点击详情 · 滚轮放大 · 双击复原';
+    setShift();
   }
 
-  /* 节点在整份文档里的绝对纵坐标，滚动时拿它和视窗中线比 */
-  var canvasTop = 0;
-  function measure(){
-    canvasTop = canvas.getBoundingClientRect().top + window.pageYOffset;
-    nodes.forEach(function(el){ el._doc = canvasTop + el._y; });
+  /* 面板打开时，树让到面板左边（手机上让到面板上方） */
+  function setShift(){
+    var open = panel.classList.contains('open');
+    root.classList.toggle('shift', open);
+    if(!open) return;
+    var W = root.clientWidth, H = root.clientHeight;
+    var size = svg.getBoundingClientRect().width;
+    if(mobile){
+      var free = H - panel.offsetHeight;
+      root.style.setProperty('--tr-shift', f1(Math.min(0, free / 2 - H / 2)) + 'px');
+    } else {
+      var left = panel.getBoundingClientRect().left - root.getBoundingClientRect().left;
+      var target = Math.max(size / 2 + 12, left / 2);
+      root.style.setProperty('--tr-shift', f1(Math.min(0, target - W / 2)) + 'px');
+    }
   }
 
-  var current = -1;
-  function show(el){
-    pDate.textContent  = el.getAttribute('data-date');
-    pTitle.textContent = el.getAttribute('data-title');
-    pEx.textContent    = el.getAttribute('data-excerpt');
-    pGo.setAttribute('href', el.getAttribute('href'));
+  /* ── 选中 / 悬停 ── */
+  var current = -1, hover = -1;
+  function mark(){
+    var k = hover !== -1 ? hover : current;
+    svg.classList.toggle('focus', k !== -1);
+    ringEls.forEach(function(g, i){ g.classList.toggle('on', i === k); });
+    barkEls.forEach(function(grp, i){
+      grp.forEach(function(p){ p.classList.toggle('on', i === k); });
+    });
+  }
+
+  function select(i){
+    if(i < 0 || i >= N) return;
+    current = i;
+    var p = posts[i];
+    pDate.textContent = p.date;
+    pTitle.textContent = p.title;
+    pEx.textContent = p.excerpt;
+    pGo.setAttribute('href', p.href);
     panel.classList.add('open');
+    setShift();
+    mark();
+  }
+  function deselect(){
+    current = -1;
+    panel.classList.remove('open');
+    setShift();
+    mark();
   }
 
-  function update(){
-    /* 刚进来时只定位到最新一篇，不点亮也不弹面板，等读者自己动了再跟随 */
-    if(!userMoved) return;
-    var mid = window.pageYOffset + window.innerHeight / 2;
-
-    /* 节点按纵坐标天然有序，二分找离中线最近的那个 */
-    var lo = 0, hi = nodes.length - 1;
+  function hitAt(cx, cy){
+    var p = svgPoint(cx, cy, view);
+    var d = Math.hypot(p.x, p.y);
+    if(d > BARK_IN - 2){
+      if(d > BARK_IN + 90) return -1;
+      var ang = Math.atan2(p.x, -p.y);
+      if(ang < 0) ang += 2 * Math.PI;
+      return Math.min(N - 1, Math.floor(ang / slot));
+    }
+    if(d < PITH) return 0;
+    var lo = 0, hi = N - 1;
     while(lo < hi){
       var m = (lo + hi) >> 1;
-      if(nodes[m]._doc < mid) lo = m + 1; else hi = m;
+      if(posts[m].b < d) lo = m + 1; else hi = m;
     }
-    var best = lo;
-    if(lo > 0 && Math.abs(nodes[lo-1]._doc - mid) < Math.abs(nodes[lo]._doc - mid)) best = lo - 1;
+    return lo;
+  }
 
-    var el = nodes[best];
-    var hit = Math.abs(el._doc - mid) <= el._reach;
+  function showTip(i, cx, cy){
+    hover = i;
+    mark();
+    if(i === -1){ tip.classList.remove('show'); return; }
+    var p = posts[i];
+    tipDate.textContent = p.date;
+    tipTitle.textContent = p.title;
+    tip.classList.add('show');
+    var rb = root.getBoundingClientRect();
+    var x = cx - rb.left + 18, y = cy - rb.top + 14;
+    var w = tip.offsetWidth, h = tip.offsetHeight;
+    if(x + w > rb.width - 12) x = cx - rb.left - w - 18;
+    if(y + h > rb.height - 12) y = cy - rb.top - h - 14;
+    tip.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
+  }
 
-    if(!hit){
-      if(current !== -1){
-        nodes[current].classList.remove('on');
-        current = -1;
-        panel.classList.remove('open');
-      }
+  /* ── 指针：悬停、点击、拖动平移、双指缩放 ── */
+  var pointers = {}, moved = 0, pinch0 = 0, zoom0 = 1, dragging = false;
+  function list(){ return Object.keys(pointers).map(function(k){ return pointers[k]; }); }
+
+  svg.addEventListener('pointerdown', function(e){
+    try{ svg.setPointerCapture(e.pointerId); }catch(err){}
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var ps = list();
+    if(ps.length === 1){ moved = 0; dragging = true; }
+    if(ps.length === 2){
+      pinch0 = Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y) || 1;
+      zoom0 = zs;
+      moved = 99;
+    }
+  });
+  svg.addEventListener('pointermove', function(e){
+    var prev = pointers[e.pointerId];
+    if(!prev){
+      if(e.pointerType === 'mouse') showTip(hitAt(e.clientX, e.clientY), e.clientX, e.clientY);
       return;
     }
-    if(best === current) return;
-    if(current !== -1) nodes[current].classList.remove('on');
-    current = best;
-    el.classList.add('on');
-    show(el);
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var ps = list();
+    if(ps.length >= 2){
+      var dist = Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y);
+      zoomAt((ps[0].x + ps[1].x) / 2, (ps[0].y + ps[1].y) / 2, (zoom0 * dist / pinch0) / zs);
+      return;
+    }
+    var dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+    moved += Math.abs(dx) + Math.abs(dy);
+    if(moved > 5 && zs > 1){
+      svg.classList.add('dragging');
+      var k = 960 / svg.getBoundingClientRect().width;
+      ztx += dx * k; zty += dy * k;
+      clampView();
+      applyView();
+      if(hover !== -1) showTip(-1);
+    }
+  });
+  function end(e){
+    if(!pointers[e.pointerId]) return;
+    delete pointers[e.pointerId];
+    if(list().length) return;
+    dragging = false;
+    svg.classList.remove('dragging');
+    if(moved <= 5 && e.type === 'pointerup'){
+      var h = hitAt(e.clientX, e.clientY);
+      if(h !== -1) select(h); else deselect();
+      if(e.pointerType !== 'mouse') showTip(-1);
+    }
   }
+  svg.addEventListener('pointerup', end);
+  svg.addEventListener('pointercancel', end);
+  svg.addEventListener('pointerleave', function(e){ if(e.pointerType === 'mouse' && !dragging) showTip(-1); });
 
-  var ticking = false;
-  function onScroll(){
-    if(ticking) return;
-    ticking = true;
-    requestAnimationFrame(function(){ ticking = false; update(); });
-  }
-
-  /* 键盘 Tab 到某个节点时，同样把它点亮并推出面板 */
-  nodes.forEach(function(el, i){
-    el.addEventListener('focus', function(){
-      if(current === i) return;
-      if(current !== -1) nodes[current].classList.remove('on');
-      current = i;
-      el.classList.add('on');
-      show(el);
-    });
+  svg.addEventListener('wheel', function(e){
+    e.preventDefault();
+    var dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    zoomAt(e.clientX, e.clientY, Math.exp(-dy * 0.0018));
+  }, { passive:false });
+  svg.addEventListener('dblclick', function(){
+    zs = 1; ztx = zty = 0;
+    applyView();
   });
 
-  /* 每次进来都落在螺旋最底端——最新的那一头 */
-  var userMoved = false;
-  function gotoLatest(){
-    var last = nodes[nodes.length - 1];
-    window.scrollTo(0, Math.max(0, last._doc - window.innerHeight / 2));
-  }
-  /* mousedown 覆盖拖滚动条的情况 */
-  ['wheel','touchstart','keydown','mousedown'].forEach(function(ev){
-    window.addEventListener(ev, function(){ userMoved = true; }, { passive:true, once:true });
+  pX.addEventListener('click', deselect);
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && current !== -1) deselect();
+  });
+  links.forEach(function(a, i){
+    a.addEventListener('focus', function(){ if(current !== i) select(i); });
   });
 
-  root.classList.add('ready');
-  layout();
-  /* 浏览器会"好心"恢复上次的滚动位置，这里得先关掉，否则定位不到最新 */
-  if('scrollRestoration' in history) history.scrollRestoration = 'manual';
-  gotoLatest();
-
-  window.addEventListener('scroll', onScroll, { passive:true });
   var rt = null;
   window.addEventListener('resize', function(){
     clearTimeout(rt);
-    rt = setTimeout(function(){
-      /* 只把 current 清掉不够，高亮的 class 也得一起摘，
-         否则换屏幕尺寸之后会留下一个永远亮着的圆点 */
-      if(current !== -1){ nodes[current].classList.remove('on'); current = -1; }
-      layout();
-      update();
-    }, 120);
+    rt = setTimeout(resize, 100);
   });
-  /* 字体加载完位置会挪，重新量一遍；用户还没动过就再对一次焦 */
-  if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){
-    measure();
-    if(!userMoved) gotoLatest(); else update();
-  });
+
+  document.body.classList.add('tr-page');
+  root.classList.add('ready');
+  resize();
+  applyView();
 })();
 </script>
 
