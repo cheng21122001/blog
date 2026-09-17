@@ -57,13 +57,14 @@
 {{- /* 详情面板：宽屏从右侧滑入，手机从底部滑出 */ -}}
 <aside class="cz-panel" id="czPanel" aria-live="polite">
   <div class="cz-p-head">
-    <a class="cz-p-tag" id="czPTagLink" href="#"><i id="czPDot"></i><span id="czPTag"></span></a>
+    <a class="cz-p-tag" id="czPTagLink"><i id="czPDot"></i><span id="czPTag"></span></a>
     <button type="button" class="cz-p-x" id="czPX" aria-label="关闭">×</button>
   </div>
   <p class="cz-p-date" id="czPDate"></p>
   <h2 class="cz-p-title" id="czPTitle"></h2>
   <p class="cz-p-ex" id="czPEx"></p>
-  <a class="cz-p-go" id="czPGo" href="#">阅读全文</a>
+  {{- /* 链接先不写 href：主题会给所有 href="#" 的链接绑上页内滚动、拦掉点击，选中文章时再由脚本填上 */ -}}
+  <a class="cz-p-go" id="czPGo">阅读全文</a>
   <div class="cz-p-nav">
     <button type="button" id="czPPrev"></button>
     <button type="button" id="czPNext"></button>
@@ -513,7 +514,7 @@ body.cz-page .top-link{ display:none !important; }
   function fillPanel(s){
     pDot.style.color = rgb(pal.dark ? pal.tint[s.c.ci] : mix(pal.tint[s.c.ci], [255,255,255], 0.25), 1);
     pTag.textContent = s.tag;
-    pTagLink.setAttribute('href', s.tagurl || '#');
+    if(s.tagurl) pTagLink.setAttribute('href', s.tagurl); else pTagLink.removeAttribute('href');
     pDate.textContent = s.date + (s.words ? '　·　' + s.words + ' 字' : '');
     pTitle.textContent = s.title;
     pEx.textContent = s.excerpt;
