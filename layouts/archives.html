@@ -11,16 +11,10 @@
 
   <div class="tr-stage" id="trStage">
     <svg class="tr-svg" id="trSvg" viewBox="-480 -480 960 960" aria-hidden="true" focusable="false">
-      <defs>
-        <mask id="trCracks" maskUnits="userSpaceOnUse" x="-480" y="-480" width="960" height="960">
-          <rect x="-480" y="-480" width="960" height="960" fill="#fff"/>
-          <g id="trCrackShapes" fill="#000"></g>
-        </mask>
-      </defs>
-      <g id="trView">
-        <g id="trTree" mask="url(#trCracks)"></g>
-        <g id="trYears" class="tr-years"></g>
-      </g>
+      {{- /* 裂缝不用遮罩挖，直接盖一层底色：手机上遮罩每次重绘都要把几千个字重算一遍 */ -}}
+      <g id="trTree"></g>
+      <g id="trCrackShapes" class="tr-cracks"></g>
+      <g id="trYears" class="tr-years"></g>
     </svg>
   </div>
 
@@ -107,6 +101,7 @@ body.tr-page .top-link{ display:none !important; }
   user-select:none; -webkit-user-select:none;
 }
 .tr-svg.zoomed{ cursor:grab; }
+.tr-svg.moving{ will-change:transform; }
 .tr-svg.dragging{ cursor:grabbing; }
 .tr-root:not(.ready) .tr-stage,
 .tr-root:not(.ready) .tr-tip,
@@ -128,6 +123,7 @@ body.tr-page .top-link{ display:none !important; }
   font-size:8.5px;
   letter-spacing:.06em;
 }
+.tr-cracks{ fill:var(--theme); }
 .tr-years text{
   fill:var(--secondary);
   font-size:8px;
@@ -141,14 +137,12 @@ body.tr-page .top-link{ display:none !important; }
 .tr-svg.focus .tr-ring.on{ opacity:1; }
 .tr-svg.focus .tr-bark path.on{ opacity:1; }
 
-/* 打开时从髓心往外一圈圈长出来 */
-.tr-grow{
-  transform-origin:0 0;
-  animation:tr-grow .7s cubic-bezier(.22,.61,.36,1) both;
-}
+/* 打开时从髓心往外一圈圈长出来。
+   只做两级透明度的跳变：每圈只重绘两次，手机上不会一帧一帧重排几千个字 */
+.tr-grow{ animation:tr-grow .24s steps(2, end) both; }
 @keyframes tr-grow{
-  from{ opacity:0; transform:scale(.86); }
-  to  { opacity:1; transform:none; }
+  from{ opacity:0; }
+  to  { opacity:1; }
 }
 
 /* 悬停小卡片 */
@@ -282,13 +276,13 @@ body.tr-page .top-link{ display:none !important; }
   var root  = document.getElementById('trRoot');
   var svg   = document.getElementById('trSvg');
   var panel = document.getElementById('trPanel');
-  if(!root || !svg || !panel || !svg.createSVGPoint) return;
+  if(!root || !svg || !panel) return;
 
   var links = Array.prototype.slice.call(document.querySelectorAll('#trList .tr-node'));
   if(!links.length) return;
 
   function $(id){ return document.getElementById(id); }
-  var stage = $('trStage'), view = $('trView'), tree = $('trTree'),
+  var stage = $('trStage'), tree = $('trTree'),
       crackEl = $('trCrackShapes'), yearsEl = $('trYears');
   var tip = $('trTip'), tipDate = $('trTipDate'), tipTitle = $('trTipTitle');
   var pDate = $('trPDate'), pTitle = $('trPTitle'), pEx = $('trPEx'), pGo = $('trPGo'), pX = $('trPX');
@@ -455,30 +449,41 @@ body.tr-page .top-link{ display:none !important; }
   });
 
   /* ── 视图：缩放与平移 ── */
-  var zs = 1, ztx = 0, zty = 0;
+  /* 缩放与平移直接改 svg 元素的 CSS 变换（单位是屏幕像素），手势进行中交给显卡缩放位图，
+     停下一会儿再撤掉 will-change，让浏览器按新倍数重新渲染清晰的字 */
+  var zs = 1, ztx = 0, zty = 0, settle = null;
   function applyView(){
-    view.setAttribute('transform', 'translate(' + f1(ztx) + ' ' + f1(zty) + ') scale(' + zs.toFixed(3) + ')');
+    svg.style.transform = (zs > 1.001)
+      ? 'translate(' + f1(ztx) + 'px,' + f1(zty) + 'px) scale(' + zs.toFixed(3) + ')'
+      : '';
     svg.classList.toggle('zoomed', zs > 1.01);
+    svg.classList.add('moving');
+    clearTimeout(settle);
+    settle = setTimeout(function(){ svg.classList.remove('moving'); }, 180);
   }
+  function baseSize(){ return parseFloat(root.style.getPropertyValue('--tr-size')) || 600; }
   function clampView(){
     if(zs <= 1.001){ zs = 1; ztx = zty = 0; return; }
-    var lim = 480 * (zs - 1) + 60;
+    var lim = baseSize() * (zs - 1) / 2 + 40;
     ztx = Math.max(-lim, Math.min(lim, ztx));
     zty = Math.max(-lim, Math.min(lim, zty));
   }
-  function svgPoint(cx, cy, target){
-    var pt = svg.createSVGPoint();
-    pt.x = cx; pt.y = cy;
-    return pt.matrixTransform((target || svg).getScreenCTM().inverse());
-  }
   function zoomAt(cx, cy, factor){
-    var p = svgPoint(cx, cy);
+    var rb = svg.getBoundingClientRect();
+    var ox = rb.left + rb.width / 2 - ztx, oy = rb.top + rb.height / 2 - zty;   // 未变换时的中心
+    var lx = (cx - ox - ztx) / zs, ly = (cy - oy - zty) / zs;
     var ns = Math.max(1, Math.min(6, zs * factor));
-    ztx = p.x - (p.x - ztx) * ns / zs;
-    zty = p.y - (p.y - zty) * ns / zs;
+    ztx = cx - ox - lx * ns;
+    zty = cy - oy - ly * ns;
     zs = ns;
     clampView();
     applyView();
+  }
+  /* 屏幕坐标换成树的坐标（viewBox 单位）；getBoundingClientRect 已经算进了缩放和平移 */
+  function treePoint(cx, cy){
+    var rb = svg.getBoundingClientRect();
+    var k = 960 / rb.width;
+    return { x: (cx - rb.left - rb.width / 2) * k, y: (cy - rb.top - rb.height / 2) * k };
   }
 
   /* ── 尺寸：树占满舞台较短的一边 ── */
@@ -501,7 +506,7 @@ body.tr-page .top-link{ display:none !important; }
     root.classList.toggle('shift', open);
     if(!open) return;
     var W = root.clientWidth, H = root.clientHeight;
-    var size = svg.getBoundingClientRect().width;
+    var size = baseSize();
     if(mobile){
       var free = H - panel.offsetHeight;
       root.style.setProperty('--tr-shift', f1(Math.min(0, free / 2 - H / 2)) + 'px');
@@ -543,7 +548,7 @@ body.tr-page .top-link{ display:none !important; }
   }
 
   function hitAt(cx, cy){
-    var p = svgPoint(cx, cy, view);
+    var p = treePoint(cx, cy);
     var d = Math.hypot(p.x, p.y);
     if(d > BARK_IN - 2){
       if(d > BARK_IN + 90) return -1;
@@ -608,8 +613,7 @@ body.tr-page .top-link{ display:none !important; }
     moved += Math.abs(dx) + Math.abs(dy);
     if(moved > 5 && zs > 1){
       svg.classList.add('dragging');
-      var k = 960 / svg.getBoundingClientRect().width;
-      ztx += dx * k; zty += dy * k;
+      ztx += dx; zty += dy;
       clampView();
       applyView();
       if(hover !== -1) showTip(-1);
