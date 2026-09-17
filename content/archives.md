@@ -1,5 +1,5 @@
 ---
-title: "时间线"
+title: "文章"
 layout: "archives"
 # url: "/archives"
 summary: "archives"

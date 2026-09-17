@@ -41,7 +41,7 @@ languages:
         - name: 标签
           url: tags/
           weight: 2
-        - name: 时间线
+        - name: 文章
           url: archives
           weight: 3
 
