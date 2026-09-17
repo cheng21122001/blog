@@ -472,6 +472,8 @@ body{ background:var(--theme); }
   }
 
   function update(){
+    /* 刚进来时只定位到最新一篇，不点亮也不弹面板，等读者自己动了再跟随 */
+    if(!userMoved) return;
     var mid = window.pageYOffset + window.innerHeight / 2;
 
     /* 节点按纵坐标天然有序，二分找离中线最近的那个 */
@@ -524,9 +526,9 @@ body{ background:var(--theme); }
   function gotoLatest(){
     var last = nodes[nodes.length - 1];
     window.scrollTo(0, Math.max(0, last._doc - window.innerHeight / 2));
-    update();
   }
-  ['wheel','touchstart','keydown'].forEach(function(ev){
+  /* mousedown 覆盖拖滚动条的情况 */
+  ['wheel','touchstart','keydown','mousedown'].forEach(function(ev){
     window.addEventListener(ev, function(){ userMoved = true; }, { passive:true, once:true });
   });
 

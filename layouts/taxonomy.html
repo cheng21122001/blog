@@ -818,13 +818,12 @@ body.cz-page .top-link{ display:none !important; }
     rt = setTimeout(resize, 100);
   });
 
-  /* ── 启动：镜头从远处推近，落在最新的那一篇 ── */
+  /* ── 启动：镜头从远处推近到全景，不自动选中任何一篇 ── */
   document.body.classList.add('cz-page');
   root.classList.add('ready');
   resize();
   cam.cx = W / 2; cam.cy = H / 2;
   setPalette();
-  select(last);
   if(reduced){
     cam.zoom = goal.zoom; cam.tx = goal.tx; cam.ty = goal.ty; cam.tz = goal.tz;
     var cg = centerGoal(); cam.cx = cg.cx; cam.cy = cg.cy;
