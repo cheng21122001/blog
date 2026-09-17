@@ -24,13 +24,14 @@
   {{- /* 页名和顶部导航里的「搜索」重复，画面上不再出现，只留给读屏和搜索引擎 */ -}}
   <h1 class="sr-only">{{ .Title }}</h1>
 
-  {{- /* #searchbox 只当容器（键盘上下键要靠它判断焦点在不在搜索区里），
-         椭圆边框挪到里面的 .searchfield 上，这样出结果时搜索框不会被撑大 */ -}}
+  {{- /* #searchbox 是整张纸条（键盘上下键要靠它判断焦点在不在搜索区里），
+         输入行 .searchfield 高度固定，出结果时只往下长 */ -}}
   <div id="searchbox" class="searchbox">
     <div class="searchfield">
+      <label for="searchInput" class="sr-only">检索</label>
       <input id="searchInput"
         placeholder="{{ .Params.placeholder | default "输入关键词，回车检索…" }}"
-        aria-label="search" type="search" autocomplete="off" maxlength="64">
+        type="search" autocomplete="off" maxlength="64">
     </div>
     <ul id="searchResults" class="searchResults" aria-label="search results"></ul>
   </div>
@@ -55,55 +56,87 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
   position:relative; z-index:1;
   display:flex; flex-direction:column; align-items:center;
   min-height:calc(100vh - var(--header-height) - 6rem);
-  padding-top:22vh;
+  padding-top:4vh;
 }
 
-/* 容器本身不画边框，搜出多少条都不影响上面那颗椭圆 */
+/* 搜索区是一张浮在字雨上的纸条：实底纸色、2px 小圆角，不画外框不加阴影，
+   只靠底部一道墨线立住；搜出来的条目接在同一张纸上往下排 */
 .searchbox{
-  width:min(90vw, 460px);
-}
-/* 搜索框浮在词雨之上，实底保证可读；高度固定，不随结果变化 */
-.searchfield{
+  width:min(90vw, 520px);
   background:var(--theme);
-  border:1px solid var(--primary);
-  border-radius:999px;
-  padding:.2rem;
-  box-shadow:0 10px 34px rgba(23,23,26,.07);
+  border-radius:2px;
+  padding:1.1rem 1.4rem .9rem;
 }
-:root[data-theme="dark"] .searchfield{
-  box-shadow:0 10px 34px rgba(0,0,0,.35);
+.searchfield{
+  display:flex; align-items:baseline;
+  border-bottom:1px solid var(--primary);
+  transition:box-shadow .2s ease;
 }
-.searchfield input{
-  width:100%; box-sizing:border-box;
-  border:none; outline:none; background:transparent;
+/* 聚焦时墨线加粗到 2px，和全站标题下那根短线同一个粗细；用内阴影加粗，文字不会跳 */
+.searchfield:focus-within{
+  box-shadow:inset 0 -1px 0 var(--primary);
+}
+/* 主题和 custom.css 对输入框另有设定（粗体、2px 框、#searchInput 无衬线），这里用 id 压住 */
+.searchfield #searchInput{
+  flex:1; min-width:0;
+  border:none; border-radius:0; outline:none; background:transparent;
   color:var(--primary);
-  padding:.7rem 1.3rem; font-size:1rem; letter-spacing:.05em;
+  font-weight:400;
+  font-family:var(--font-serif);
+  font-size:1.2rem; letter-spacing:.06em;
+  padding:.35rem 0 .55rem;
+  -webkit-appearance:none; appearance:none;
 }
 .searchfield input::placeholder{
-  color:var(--secondary); letter-spacing:.1em; font-size:.9rem;
+  color:var(--secondary); opacity:.75;
+  font-size:1rem; letter-spacing:.12em;
 }
+.searchfield input::-webkit-search-cancel-button{ -webkit-appearance:none; }
+
 .searchResults{
-  list-style:none; margin:.9rem 0 0; padding:0;
+  list-style:none; margin:0; padding:0;
   width:100%;
+  display:block; gap:0;
 }
+.searchResults:not(:empty){ margin-top:.6rem; }
+/* 主题给每条结果画了框、底色、圆角和上浮，这里全部去掉，改成同一张纸上的分行 */
 .searchResults li{
   position:relative;
-  background:var(--theme);
-  border:1px solid var(--border);
-  border-radius:2px;
-  padding:.75rem 1.1rem; margin-bottom:.5rem;
+  background:none; border:none; border-radius:0;
+  transform:none;
+  font-weight:400;
+  padding:.62rem 0 .62rem .9rem;
   font-family:var(--font-serif);
-  font-size:.98rem; letter-spacing:.03em;
-  display:flex; align-items:center; justify-content:space-between;
-  transition:border-color .2s ease, transform .2s ease;
+  font-size:1rem; letter-spacing:.04em;
+  color:var(--primary);
+  display:flex; align-items:center; justify-content:space-between; gap:1rem;
+}
+.searchResults li + li{ border-top:1px solid var(--border); }
+/* 悬停或键盘选中：左边出一截短墨线，箭头往右挪一点 */
+.searchResults li::before{
+  content:""; position:absolute; left:0; top:50%;
+  width:2px; height:0; background:var(--primary);
+  transform:translateY(-50%);
+  transition:height .2s ease;
 }
 .searchResults li:hover,
-.searchResults li.focus{
-  border-color:var(--primary);
-  transform:translateY(-1px);
+.searchResults li:focus-within,
+.searchResults li.focus{ transform:none; }
+.searchResults li:hover::before,
+.searchResults li.focus::before{ height:1.1em; }
+.searchResults li svg{
+  flex:none; width:15px; height:15px;
+  color:var(--secondary);
+  transition:transform .2s ease, color .2s ease;
 }
+.searchResults li:hover svg,
+.searchResults li.focus svg{ color:var(--primary); transform:translateX(3px); }
 .searchResults .entry-link{
   position:absolute; inset:0;
+}
+.searchResults li .entry-link:focus{ outline:none; }
+@media (prefers-reduced-motion: reduce){
+  .searchResults li::before, .searchResults li svg, .searchfield{ transition:none; }
 }
 </style>
 
@@ -112,12 +145,13 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
   var canvas = document.getElementById('wordRain');
   if(!canvas || !canvas.getContext) return;
 
-  /* 把标题和句子拆成单个汉字当雨滴；常用字出现得多，所以不去重 */
-  var chars = [];
+  /* 标题和句子：拆成单个汉字当雨滴，整句留着偶尔落一长串；常用字出现得多，所以不去重 */
+  var HAN = /[㐀-鿿]/;
+  var chars = [], lines = [];
   (window.__RAIN_POOL__ || []).forEach(function(s){
-    Array.from(s || '').forEach(function(c){
-      if(/[㐀-鿿]/.test(c)) chars.push(c);
-    });
+    var han = Array.from(s || '').filter(function(c){ return HAN.test(c); });
+    chars.push.apply(chars, han);
+    if(han.length >= 2) lines.push(han);
   });
   if(chars.length === 0) return;
 
@@ -127,25 +161,40 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
   var W = 0, H = 0, cols = [], ink = '', dark = false;
   var box = null, boxAt = 0;
 
-  /* 同一种墨色分深、中、浅三档：浅的铺底、深的压在上面，互相叠着 */
+  /* 每一列只用一种字号，列宽正好贴着字，不留多余的空；字号只取几档，字图缓存不会无限涨 */
+  var SIZES = [
+    { v: 8,  p: 0.30 }, { v: 9,  p: 0.30 }, { v: 10, p: 0.20 },
+    { v: 12, p: 0.12 }, { v: 14, p: 0.08 }
+  ];
+  /* 同一种墨色分浅、中、深三档 */
   var TIERS = [
-    { share: 0.42, light: 0.13, dark: 0.12 },
-    { share: 0.36, light: 0.36, dark: 0.30 },
-    { share: 0.22, light: 0.80, dark: 0.66 }
+    { light: 0.13, dark: 0.11 },
+    { light: 0.36, dark: 0.30 },
+    { light: 0.86, dark: 0.70 }
   ];
-  /* 几种粗重字形混排：粗宋、特粗宋、粗黑体，偶尔一个常规宋 */
+  /* 小字多半是浅的，大字多半是深的，画面才有前后层次 */
+  function tierFor(size){
+    var w = size <= 8  ? [0.55, 0.33, 0.12]
+          : size <= 10 ? [0.30, 0.38, 0.32]
+          :              [0.14, 0.34, 0.52];
+    var r = Math.random();
+    return r < w[0] ? 0 : r < w[0] + w[1] ? 1 : 2;
+  }
+  /* 几种中等粗细的字形混排：常规宋、粗宋、中黑、半粗黑（拖尾小字用中黑） */
   var FACES = [
-    { w: 900, fam: '"Songti SC","Source Han Serif SC","Noto Serif SC",STSong,serif', p: 0.34 },
-    { w: 700, fam: '"Songti SC","Source Han Serif SC","Noto Serif SC",STSong,serif', p: 0.30 },
-    { w: 700, fam: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif',    p: 0.26 },
-    { w: 400, fam: '"Songti SC","Source Han Serif SC","Noto Serif SC",STSong,serif', p: 0.10 }
+    { w: 400, fam: '"Songti SC","Source Han Serif SC","Noto Serif SC",STSong,serif', p: 0.30 },
+    { w: 700, fam: '"Songti SC","Source Han Serif SC","Noto Serif SC",STSong,serif', p: 0.25 },
+    { w: 500, fam: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif',    p: 0.25 },
+    { w: 600, fam: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif',    p: 0.20 }
   ];
+  /* 拖尾两颗小字的透明度（相对本字） */
+  var TAIL_FADE = [0.45, 0.2];
 
   function rand(a, b){ return a + Math.random() * (b - a); }
   function pickChar(){ return chars[(Math.random() * chars.length) | 0]; }
   function pickFrom(list){
     var r = Math.random();
-    for(var i=0;i<list.length;i++){ r -= (list[i].share || list[i].p); if(r <= 0) return list[i]; }
+    for(var i=0;i<list.length;i++){ r -= list[i].p; if(r <= 0) return list[i]; }
     return list[list.length - 1];
   }
 
@@ -153,15 +202,17 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
     var t = document.documentElement.getAttribute('data-theme');
     dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
     ink = dark ? '#ececea' : '#17171a';
-    sprites = {};
+    sprites = {}; spriteCount = 0;
   }
 
   /* 每种字形第一次出现时画成一小张图，之后每帧只贴图 */
-  var sprites = {};
+  var sprites = {}, spriteCount = 0;
   function sprite(g){
     var key = g.ch + '|' + g.size + '|' + g.face.w + g.face.fam.length;
     var s = sprites[key];
     if(s) return s;
+    /* 字 × 字号 × 字形的组合很多，攒太多就清空重来 */
+    if(++spriteCount > 2500){ sprites = {}; spriteCount = 0; }
     var px = Math.ceil(g.size * 1.3 * dpr);
     var c = document.createElement('canvas');
     c.width = c.height = px;
@@ -176,42 +227,39 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
     return s;
   }
 
-  /* 一个字：大多 11–16px，偶尔大到 22px；大字旁边有时挂一个小字 */
-  function makeGlyph(){
-    var big = Math.random() < 0.18;
-    var g = {
-      ch: pickChar(),
-      size: Math.round(big ? rand(18, 22) : rand(11, 16)),
-      face: pickFrom(FACES),
-      tier: pickFrom(TIERS),
-      dx: rand(-1, 1),
-      kid: null
-    };
-    if(big && Math.random() < 0.5){
-      var ks = Math.round(rand(7, 9));
-      /* 小字贴在大字右上角：横向紧挨着大字，上沿和大字对齐，不压到别的字 */
-      g.kid = { ch: pickChar(), size: ks, face: FACES[2], tier: TIERS[Math.random() < 0.5 ? 1 : 2],
-                dx: g.size / 2 + ks / 2 + 1, dy: -(g.size - ks) / 2 };
-    }
-    return g;
+  /* 往这一列最上面摞一个字：字与字之间留 gap，绝不重叠 */
+  var unit = null;
+  function put(c, ch, size, face, tier, fade, gap){
+    var y = c.top - gap - size / 2;
+    var g = { ch: ch, size: size, face: face, tier: tier, fade: fade, y: y, u: unit };
+    if(!unit.low) unit.low = g;
+    c.glyphs.push(g);
+    c.top = y - size / 2;
+  }
+  function tail(c, size, tier){
+    var ts = size <= 9 ? 5 : 6;
+    for(var k=0;k<TAIL_FADE.length;k++) put(c, pickChar(), ts, FACES[2], tier, TAIL_FADE[k], 1);
   }
 
-  /* 一串接一串往下掉：串里的字上下紧挨但不重叠，串和串之间留空 */
-  function gapAfter(){ return Math.random() < 0.3 ? rand(60, 220) : 0; }
-  /* 新字放在这一列当前最上面那个字的上方：两字中心距 = 两字半高之和 + 2px */
-  function stackOn(c, g){
-    c.top -= (c.topSize + g.size) / 2 + 2 + gapAfter();
-    c.topSize = g.size;
-    g.y = c.top;
-  }
-
-  function fillColumn(c, fromY, toY){
-    c.top = fromY; c.topSize = 0;
-    while(c.top > toY){
-      var g = makeGlyph();
-      stackOn(c, g);
-      c.glyphs.push(g);
+  /* 一组：文章里连着的一小段短句（2–5 个字），从上往下读，头顶跟两颗小字；
+     组与组之间只留一点空，文章太少取不出短句时才退回单字 */
+  function addUnit(c){
+    unit = { low: null };
+    c.top -= Math.random() < 0.25 ? rand(90, 200) : rand(30, 70);
+    if(lines.length){
+      var ln = lines[(Math.random() * lines.length) | 0];
+      var n = Math.min(ln.length, 2 + ((Math.random() * Math.random() * 4) | 0));
+      var from = (Math.random() * (ln.length - n + 1)) | 0;
+      var size = c.size;
+      var face = pickFrom(FACES), tier = tierFor(size);
+      for(var i = from + n - 1; i >= from; i--) put(c, ln[i], size, face, tier, 1, i === from + n - 1 ? 0 : 1);
+      tail(c, size, tier);
+      return;
     }
+    var s = c.size;
+    var tr = tierFor(s);
+    put(c, pickChar(), s, pickFrom(FACES), tr, 1, 0);
+    tail(c, s, tr);
   }
 
   function setup(){
@@ -219,29 +267,32 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     cols = [];
-    /* 列与列之间至少放得下最大的字加旁边的小字，左右不会碰到：电脑约 35 列，手机约 9 列 */
-    var gap = 36;
-    for(var x = rand(12, gap); x < W - 12; x += rand(gap, gap * 1.4)){
-      var c = { x: x, speed: rand(10, 22), glyphs: [], top: 0 };
-      fillColumn(c, H + rand(0, 200), -40);
+    measureBox();
+    if(!box) return;
+    /* 雨只在搜索框正下方落：列排在搜索框左右边之间 */
+    var x = box.l, prevHalf = 0;
+    while(true){
+      var size = pickFrom(SIZES).v, half = size / 2;
+      /* 相邻两列多半隔 6–12px，约五分之一轻轻叠上一点 */
+      x += prevHalf + half + (Math.random() < 0.2 ? -size * 0.1 : rand(6, 12));
+      if(x + half > box.r) break;
+      prevHalf = half;
+      /* 每列一个速度：同一列里的字一起落，上下不会撞上 */
+      var c = { x: x, size: size, speed: rand(40, 110), glyphs: [], top: H + rand(0, 160) };
+      while(c.top > box.b - 40) addUnit(c);
       cols.push(c);
     }
-    measureBox();
   }
 
-  /* 搜索框和结果所在的区域：这里的字压淡，输入和结果更清楚 */
+  /* 搜索框（连同搜出来的结果）的位置：雨从它的下沿落下，出结果时跟着往下挪 */
   function measureBox(){
     var el = document.getElementById('searchbox');
     if(!el) return;
-    var r = el.getBoundingClientRect();
-    box = { l: r.left - 24, r: r.right + 24, t: r.top - 24, b: r.bottom + 24 };
+    /* 左右和输入行那道墨线对齐，下沿取整张纸条（含结果） */
+    var f = el.querySelector('.searchfield') || el;
+    var r = el.getBoundingClientRect(), fr = f.getBoundingClientRect();
+    box = { l: fr.left, r: fr.right, b: r.bottom };
     boxAt = performance.now();
-  }
-
-  function draw1(g, x, y, fade){
-    var s = sprite(g);
-    ctx.globalAlpha = (dark ? g.tier.dark : g.tier.light) * fade;
-    ctx.drawImage(s.img, x - s.w / 2, y - s.w / 2, s.w, s.w);
   }
 
   var last = 0;
@@ -252,34 +303,35 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
+    if(!box) return;
+    /* 只画搜索框下沿以下；字从纸条底下钻出来，头 30px 渐显 */
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, box.b, W, H - box.b);
+    ctx.clip();
 
-    /* 按深浅分三遍画，浅的在下、深的在上 */
-    for(var t=0;t<TIERS.length;t++){
-      var tier = TIERS[t];
-      for(var i=0;i<cols.length;i++){
-        var c = cols[i];
-        for(var j=0;j<c.glyphs.length;j++){
-          var g = c.glyphs[j];
-          if(t === 0) g.y += c.speed * dt;
-          var x = c.x + g.dx;
-          if(g.y < -30 || g.y > H + 30) continue;
-          var fade = (box && x > box.l && x < box.r && g.y > box.t && g.y < box.b) ? 0.35 : 1;
-          if(g.tier === tier) draw1(g, x, g.y, fade);
-          if(g.kid && g.kid.tier === tier) draw1(g.kid, x + g.kid.dx, g.y + g.kid.dy, fade);
-        }
-        if(t === 0){
-          c.top += c.speed * dt;
-          /* 掉出底部的字挪回顶上，换一个新字接在这一列最上面 */
-          for(var k=0;k<c.glyphs.length;k++){
-            if(c.glyphs[k].y - 30 > H){
-              var n = makeGlyph();
-              stackOn(c, n);
-              c.glyphs[k] = n;
-            }
-          }
-        }
+    for(var i=0;i<cols.length;i++){
+      var c = cols[i], dy = c.speed * dt, x = c.x;
+      c.top += dy;
+      var drop = 0;
+      for(var j=0;j<c.glyphs.length;j++){
+        var g = c.glyphs[j];
+        g.y += dy;
+        /* 一组字按最底下那个字到底边的距离一起淡出，整组消失，不会剩下半截变成单字 */
+        var low = g.u.low, uf = Math.min(1, (H - low.y - low.size / 2) / 70);
+        if(uf <= 0){ drop = j + 1; continue; }
+        if(g.y + g.size < box.b) continue;   /* 还在搜索框底下藏着：跟着落，但不用画 */
+        var s = sprite(g);
+        var a = (dark ? TIERS[g.tier].dark : TIERS[g.tier].light) * g.fade * uf;
+        a *= Math.max(0, Math.min(1, (g.y - box.b) / 30));
+        ctx.globalAlpha = a;
+        ctx.drawImage(s.img, x - s.w / 2, g.y - s.w / 2, s.w, s.w);
       }
+      /* 淡没了的组扔掉，顶上缺了就再摞新的 */
+      if(drop) c.glyphs.splice(0, drop);
+      while(c.top > box.b - 40) addUnit(c);
     }
+    ctx.restore();
     ctx.globalAlpha = 1;
     if(!reduce) requestAnimationFrame(frame);
   }
@@ -287,6 +339,10 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
   readTheme();
   setup();
   requestAnimationFrame(frame);
+
+  /* 输入后结果列表马上变长或变短，雨的起点跟着挪，不用等下一次轮询 */
+  var inp = document.getElementById('searchInput');
+  if(inp) inp.addEventListener('input', function(){ setTimeout(measureBox, 0); });
 
   var rt;
   window.addEventListener('resize', function(){
@@ -302,7 +358,7 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
 
   /* 字体晚到时，缓存里可能是后备字体画的字，到了再重画一遍 */
   if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){
-    sprites = {};
+    sprites = {}; spriteCount = 0;
     if(reduce) requestAnimationFrame(frame);
   });
 })();
