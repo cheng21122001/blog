@@ -10,12 +10,12 @@
   <h1 class="sr-only">{{ .Title }}</h1>
 
   <div class="tr-stage" id="trStage">
-    <svg class="tr-svg" id="trSvg" viewBox="-480 -480 960 960" aria-hidden="true" focusable="false">
-      {{- /* 裂缝不用遮罩挖，直接盖一层底色：手机上遮罩每次重绘都要把几千个字重算一遍 */ -}}
-      <g id="trTree"></g>
-      <g id="trCrackShapes" class="tr-cracks"></g>
-      <g id="trYears" class="tr-years"></g>
-    </svg>
+    {{- /* 整棵树画进一张位图（trBase），悬停高亮是盖在上面的一层蒙版（trOver）：
+           几千个字只在打开、缩放停下、换主题时画一次，鼠标移动不会让整棵树重绘 */ -}}
+    <div class="tr-art" id="trArt" aria-hidden="true">
+      <canvas id="trBase"></canvas>
+      <canvas id="trOver"></canvas>
+    </div>
   </div>
 
   <div class="tr-tip" id="trTip">
@@ -91,59 +91,27 @@ body.tr-page .top-link{ display:none !important; }
   position:absolute; inset:0;
   display:flex; align-items:center; justify-content:center;
   transition:transform .45s cubic-bezier(.22,.61,.36,1);
+  will-change:transform;
 }
 .tr-root.shift .tr-stage{ transform:translateX(var(--tr-shift,0px)); }
-.tr-svg{
+.tr-art{
+  position:relative;
   width:var(--tr-size,600px); height:var(--tr-size,600px);
-  display:block; overflow:visible;
   touch-action:none;
   cursor:default;
   user-select:none; -webkit-user-select:none;
+  will-change:transform;
 }
-.tr-svg.zoomed{ cursor:grab; }
-.tr-svg.moving{ will-change:transform; }
-.tr-svg.dragging{ cursor:grabbing; }
+.tr-art canvas{
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  display:block;
+}
+.tr-art.zoomed{ cursor:grab; }
+.tr-art.dragging{ cursor:grabbing; }
 .tr-root:not(.ready) .tr-stage,
 .tr-root:not(.ready) .tr-tip,
 .tr-root:not(.ready) .tr-hint{ display:none; }
-
-/* 年轮文字：衬线，早材深、晚材浅 */
-.tr-ring{
-  fill:var(--primary);
-  font-family:var(--font-serif);
-  opacity:.82;
-  transition:opacity .25s ease;
-}
-.tr-ring.alt{ opacity:.56; }
-.tr-pith{ fill:var(--primary); }
-.tr-bark path{ fill:var(--primary); opacity:.86; transition:opacity .25s ease; }
-.tr-bark text{
-  fill:var(--theme);
-  font-family:var(--font-serif);
-  font-size:8.5px;
-  letter-spacing:.06em;
-}
-.tr-cracks{ fill:var(--theme); }
-.tr-years text{
-  fill:var(--secondary);
-  font-size:8px;
-  letter-spacing:.12em;
-  font-variant-numeric:tabular-nums;
-}
-
-/* 悬停或选中一圈：这一圈加深，其余变淡 */
-.tr-svg.focus .tr-ring,
-.tr-svg.focus .tr-bark path{ opacity:.14; }
-.tr-svg.focus .tr-ring.on{ opacity:1; }
-.tr-svg.focus .tr-bark path.on{ opacity:1; }
-
-/* 打开时从髓心往外一圈圈长出来。
-   只做两级透明度的跳变：每圈只重绘两次，手机上不会一帧一帧重排几千个字 */
-.tr-grow{ animation:tr-grow .24s steps(2, end) both; }
-@keyframes tr-grow{
-  from{ opacity:0; }
-  to  { opacity:1; }
-}
 
 /* 悬停小卡片 */
 .tr-tip{
@@ -254,7 +222,6 @@ body.tr-page .top-link{ display:none !important; }
 }
 
 @media (prefers-reduced-motion: reduce){
-  .tr-grow{ animation:none; }
   .tr-stage, .tr-panel, .tr-tip{ transition:none; }
 }
 
@@ -274,32 +241,20 @@ body.tr-page .top-link{ display:none !important; }
 <script>
 (function(){
   var root  = document.getElementById('trRoot');
-  var svg   = document.getElementById('trSvg');
   var panel = document.getElementById('trPanel');
-  if(!root || !svg || !panel) return;
+  if(!root || !panel || !document.getElementById('trBase').getContext) return;
 
   var links = Array.prototype.slice.call(document.querySelectorAll('#trList .tr-node'));
   if(!links.length) return;
 
   function $(id){ return document.getElementById(id); }
-  var stage = $('trStage'), tree = $('trTree'),
-      crackEl = $('trCrackShapes'), yearsEl = $('trYears');
   var tip = $('trTip'), tipDate = $('trTipDate'), tipTitle = $('trTipTitle');
   var pDate = $('trPDate'), pTitle = $('trPTitle'), pEx = $('trPEx'), pGo = $('trPGo'), pX = $('trPX');
 
-  var NS = 'http://www.w3.org/2000/svg';
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var mobile = false;
 
-  function el(parent, name, attrs, text){
-    var e = document.createElementNS(NS, name);
-    for(var k in attrs) e.setAttribute(k, attrs[k]);
-    if(text != null) e.textContent = text;
-    parent.appendChild(e);
-    return e;
-  }
   function f1(v){ return v.toFixed(1); }
-  function polar(r, a){ return f1(r * Math.sin(a)) + ',' + f1(-r * Math.cos(a)); }
 
   /* 固定种子的随机数：裂缝和树皮每次打开都一样 */
   function hash(s){
@@ -344,80 +299,61 @@ body.tr-page .top-link{ display:none !important; }
     p.a = r; p.b = r + t; r += t;
   });
 
-  function circlePath(rad){
-    return 'M0,' + f1(-rad) + 'A' + f1(rad) + ',' + f1(rad) + ' 0 1 1 0,' + f1(rad) +
-           'A' + f1(rad) + ',' + f1(rad) + ' 0 1 1 0,' + f1(-rad);
+  var art = $('trArt'), base = $('trBase'), over = $('trOver');
+  var bctx = base.getContext('2d'), octx = over.getContext('2d');
+  if(!bctx || !octx) return;
+  var HALF_PI = Math.PI / 2, TAU = Math.PI * 2;
+
+  /* ── 颜色和字体：从站点令牌里读，主题切换时重读 ── */
+  var col = {};
+  function readColors(){
+    var cs = getComputedStyle(document.documentElement);
+    col.ink   = cs.getPropertyValue('--primary').trim()   || '#17171a';
+    col.bg    = cs.getPropertyValue('--theme').trim()     || '#fcfcfa';
+    col.mute  = cs.getPropertyValue('--secondary').trim() || '#706d67';
+    col.serif = cs.getPropertyValue('--font-serif').trim() || 'serif';
+    col.sans  = cs.getPropertyValue('--font-sans').trim()  || 'sans-serif';
   }
 
-  /* ── 年轮 ── */
-  var ringEls = [];
-  var stagger = reduced ? 0 : 1800 / N;
-  el(tree, 'circle', { class: 'tr-pith', r: PITH * 0.55, cx: 0, cy: 0 });
+  /* ── 年轮：每圈算好字号、半径、每个字的角度步长 ── */
   posts.forEach(function(p, i){
     var t = p.b - p.a - GAP;
     var fs = Math.max(1.2, t * 0.8);
-    var base = p.a + GAP / 2 + t * 0.14;           // 字从基线往外长
-    var C = 2 * Math.PI * base;
+    var rad = p.a + GAP / 2 + t * 0.14;              // 字从基线往外长
+    var C = 2 * Math.PI * rad;
     var n = Math.max(3, Math.floor(C / (fs * 1.04)));
     var txt = p.ring;
-    while(txt.length < n) txt += '　' + p.ring;
-    txt = Array.from(txt).slice(0, n).join('');
-
-    var g = el(tree, 'g', { class: 'tr-ring' + (i % 2 ? ' alt' : '') });
-    var grow = el(g, 'g', { class: 'tr-grow', style: 'animation-delay:' + Math.round(i * stagger) + 'ms' });
-    var pid = 'trRing' + i;
-    el(grow, 'path', { id: pid, d: circlePath(base), fill: 'none' });
-    var text = el(grow, 'text', { 'font-size': f1(fs) });
-    var tp = el(text, 'textPath', { href: '#' + pid, textLength: f1(C - fs * 0.6), lengthAdjust: 'spacing' }, txt);
-    tp.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', '#' + pid);
-    ringEls.push(g);
+    while(Array.from(txt).length < n) txt += '　' + p.ring;
+    p.glyphs = Array.from(txt).slice(0, n);
+    p.fs = fs;
+    p.rad = rad;
+    p.step = (C - fs * 0.6) / n / rad;                 // 排满一圈，末尾留一点缝
+    p.alpha = i % 2 ? 0.56 : 0.82;                     // 早材深、晚材浅
   });
 
   /* ── 树皮：一篇一组，每组几根长短不一的条，中间那根竖写标题 ── */
-  var bark = el(tree, 'g', { class: 'tr-bark' });
-  var barkGrow = el(bark, 'g', { class: 'tr-grow', style: 'animation-delay:' + Math.round(N * stagger) + 'ms' });
-  var barkEls = [];
-  var slot = 2 * Math.PI / N;
+  var slot = TAU / N;
   var br = rng(hash('bark'));
+  var bars = [];
   posts.forEach(function(p, i){
     var chars = Array.from(p.title).slice(0, 5);
     var need = chars.length * 9 + 12;
-    var bars = Math.max(2, Math.round(slot * BARK_IN / 24));
-    var mid = Math.floor(bars / 2);
+    var cnt = Math.max(2, Math.round(slot * BARK_IN / 24));
+    var mid = Math.floor(cnt / 2);
     var gapA = 0.0035;
-    var grp = [];
-    for(var k=0;k<bars;k++){
-      var a1 = i * slot + k * slot / bars + gapA;
-      var a2 = i * slot + (k + 1) * slot / bars - gapA;
+    for(var k=0;k<cnt;k++){
+      var a1 = i * slot + k * slot / cnt + gapA;
+      var a2 = i * slot + (k + 1) * slot / cnt - gapA;
       var L = k === mid ? Math.max(need, 34) : 16 + br() * 26;
-      var r2 = BARK_IN + L;
-      var d = 'M' + polar(BARK_IN, a1) + 'L' + polar(r2, a1) +
-              'A' + f1(r2) + ',' + f1(r2) + ' 0 0 1 ' + polar(r2, a2) +
-              'L' + polar(BARK_IN, a2) +
-              'A' + BARK_IN + ',' + BARK_IN + ' 0 0 0 ' + polar(BARK_IN, a1) + 'Z';
-      var path = el(barkGrow, 'path', { d: d });
-      path._post = i;
-      grp.push(path);
-      if(k === mid){
-        /* 标题沿半径方向写：右半边从里往外读，左半边从外往里读，字都是正的 */
-        var am = (a1 + a2) / 2, deg = am * 180 / Math.PI;
-        var left = deg > 180;
-        var tx = el(barkGrow, 'text', {
-          transform: 'rotate(' + f1(left ? deg + 90 : deg - 90) + ')',
-          x: f1(left ? -(BARK_IN + 6) : BARK_IN + 6),
-          y: 3,
-          'text-anchor': left ? 'end' : 'start'
-        }, chars.join(''));
-        tx.style.pointerEvents = 'none';
-      }
+      bars.push({ a1: a1, a2: a2, r2: BARK_IN + L, label: k === mid ? chars.join('') : null });
     }
-    barkEls.push(grp);
     p.a1 = i * slot; p.a2 = (i + 1) * slot;
   });
 
-  /* ── 裂缝：从外缘往里的窄楔形，边缘带一点锯齿 ── */
+  /* ── 裂缝：从外缘往里的窄楔形，边缘带一点锯齿；右侧一道直通髓心的细缝 ── */
   var cr = rng(hash('cracks'));
   var OUT = BARK_IN + 80;
+  var cracks = [];
   [[-0.72, 0.48], [0.62, 0.72], [2.62, 0.30], [3.72, 0.62], [5.02, 0.78]].forEach(function(c){
     var ang = c[0] + (cr() - 0.5) * 0.25;
     var rEnd = WOOD * c[1];
@@ -429,37 +365,181 @@ body.tr-page .top-link{ display:none !important; }
       var jit = (cr() - 0.5) * 3;
       var nx = Math.cos(ang), ny = Math.sin(ang);    // 垂直于半径的方向
       var cx = rr * Math.sin(ang) + jit * nx * 0.4, cy = -rr * Math.cos(ang) + jit * ny * 0.4;
-      side1.push(f1(cx + nx * half) + ',' + f1(cy + ny * half));
-      side2.unshift(f1(cx - nx * half) + ',' + f1(cy - ny * half));
+      side1.push([cx + nx * half, cy + ny * half]);
+      side2.unshift([cx - nx * half, cy - ny * half]);
     }
-    el(crackEl, 'polygon', { points: side1.concat(side2).join(' ') });
+    cracks.push(side1.concat(side2));
   });
+  cracks.push([[PITH + 6, -2.5], [OUT, -8], [OUT, 8], [PITH + 6, 2.5]]);
 
-  /* 右侧一道直通髓心的细缝，年份写在缝里 */
-  el(crackEl, 'polygon', { points: [
-    f1(PITH + 6) + ',-2.5', f1(OUT) + ',-8', f1(OUT) + ',8', f1(PITH + 6) + ',2.5'
-  ].join(' ') });
-  /* 两个年份挨得太近时，后一个错开写到缝的下沿 */
+  /* 年份写在右侧细缝里；两个年份挨得太近时，后一个错开写到缝的下沿 */
+  var years = [];
   var lastX = -99, low = false;
   posts.forEach(function(p, i){
     if(i > 0 && posts[i-1].yi === p.yi) return;
     low = p.a - lastX < 26 ? !low : false;
     lastX = p.a;
-    el(yearsEl, 'text', { x: f1(p.a + 1), y: low ? 13 : 2.8 }, p.year);
+    years.push({ x: p.a + 1, y: low ? 13 : 2.8, text: p.year });
   });
 
-  /* ── 视图：缩放与平移 ── */
-  /* 缩放与平移直接改 svg 元素的 CSS 变换（单位是屏幕像素），手势进行中交给显卡缩放位图，
-     停下一会儿再撤掉 will-change，让浏览器按新倍数重新渲染清晰的字 */
+  /* ── 绘制：整棵树画进一张位图，只在打开、缩放停下、换主题时重画 ── */
+  var S = 1, CX = 0;                                   // 树单位 → 位图像素
+  function drawPith(){
+    bctx.setTransform(1, 0, 0, 1, 0, 0);
+    bctx.globalAlpha = 1;
+    bctx.fillStyle = col.ink;
+    bctx.beginPath();
+    bctx.arc(CX, CX, PITH * 0.55 * S, 0, TAU);
+    bctx.fill();
+  }
+  function drawRing(p){
+    bctx.fillStyle = col.ink;
+    bctx.globalAlpha = p.alpha;
+    bctx.font = (p.fs * S).toFixed(2) + 'px ' + col.serif;
+    bctx.textAlign = 'center';
+    bctx.textBaseline = 'alphabetic';
+    var r = p.rad * S;
+    for(var j=0;j<p.glyphs.length;j++){
+      var a = (j + 0.5) * p.step, c = Math.cos(a), s = Math.sin(a);
+      bctx.setTransform(c, s, -s, c, CX + r * s, CX - r * c);
+      bctx.fillText(p.glyphs[j], 0, 0);
+    }
+    bctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  function drawBark(){
+    bctx.setTransform(1, 0, 0, 1, 0, 0);
+    bctx.globalAlpha = 0.86;
+    bctx.fillStyle = col.ink;
+    bars.forEach(function(b){
+      bctx.beginPath();
+      bctx.arc(CX, CX, b.r2 * S, b.a1 - HALF_PI, b.a2 - HALF_PI);
+      bctx.arc(CX, CX, BARK_IN * S, b.a2 - HALF_PI, b.a1 - HALF_PI, true);
+      bctx.closePath();
+      bctx.fill();
+    });
+    /* 标题沿半径方向写：右半边从里往外读，左半边从外往里读，字都是正的 */
+    bctx.globalAlpha = 1;
+    bctx.fillStyle = col.bg;
+    bctx.font = (8.5 * S).toFixed(2) + 'px ' + col.serif;
+    bctx.textBaseline = 'alphabetic';
+    bars.forEach(function(b){
+      if(!b.label) return;
+      var am = (b.a1 + b.a2) / 2;
+      var left = am > Math.PI;
+      var th = left ? am + HALF_PI : am - HALF_PI, c = Math.cos(th), s = Math.sin(th);
+      bctx.setTransform(c, s, -s, c, CX, CX);
+      bctx.textAlign = left ? 'right' : 'left';
+      bctx.fillText(b.label, (left ? -(BARK_IN + 6) : BARK_IN + 6) * S, 3 * S);
+    });
+    bctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  function drawCracks(){
+    bctx.setTransform(1, 0, 0, 1, 0, 0);
+    bctx.globalAlpha = 1;
+    bctx.fillStyle = col.bg;
+    cracks.forEach(function(pts){
+      bctx.beginPath();
+      pts.forEach(function(q, k){
+        if(k) bctx.lineTo(CX + q[0] * S, CX + q[1] * S);
+        else  bctx.moveTo(CX + q[0] * S, CX + q[1] * S);
+      });
+      bctx.closePath();
+      bctx.fill();
+    });
+  }
+  function drawYears(){
+    bctx.setTransform(1, 0, 0, 1, 0, 0);
+    bctx.globalAlpha = 1;
+    bctx.fillStyle = col.mute;
+    bctx.font = (8 * S).toFixed(2) + 'px ' + col.sans;
+    bctx.textAlign = 'left';
+    bctx.textBaseline = 'alphabetic';
+    years.forEach(function(y){ bctx.fillText(y.text, CX + y.x * S, CX + y.y * S); });
+  }
+
+  /* 位图边长 = 显示边长 × 像素比 × 缩放倍数，封顶，避免手机上位图过大 */
+  var rendered = 0, grown = N, growT0 = 0;
+  function wantPx(){
+    var cap = mobile ? 2800 : 4000;                  // Safari 的画布面积上限约 4096²，超了会整张变空白
+    return Math.min(cap, Math.round(baseSize() * dpr * Math.max(1, zs)));
+  }
+  function prepare(px){
+    base.width = base.height = px;
+    S = px / 960; CX = px / 2;
+    rendered = px;
+  }
+  function renderAll(){
+    prepare(wantPx());
+    bctx.clearRect(0, 0, base.width, base.height);
+    drawPith();
+    posts.forEach(drawRing);
+    drawBark();
+    drawCracks();
+    drawYears();
+    grown = N;
+  }
+
+  /* 打开时从髓心往外一圈圈长出来：每帧只补画新长出的几圈，画完就停 */
+  function grow(){
+    prepare(wantPx());
+    bctx.clearRect(0, 0, base.width, base.height);
+    drawPith();
+    grown = 0;
+    growT0 = performance.now();
+    requestAnimationFrame(growFrame);
+  }
+  function growFrame(now){
+    if(grown >= N) return;                             // 期间被整棵重画过
+    var target = Math.min(N, Math.floor((now - growT0) / 1800 * N) + 1);
+    while(grown < target){ drawRing(posts[grown]); grown++; }
+    drawCracks();
+    if(grown < N){ requestAnimationFrame(growFrame); return; }
+    drawBark();
+    drawCracks();
+    drawYears();
+  }
+
+  /* ── 高亮：盖一层半透明底色，只把选中的那一圈和那组树皮挖出来 ── */
+  function drawOverlay(){
+    var k = hover !== -1 ? hover : current;
+    octx.setTransform(1, 0, 0, 1, 0, 0);
+    octx.clearRect(0, 0, over.width, over.height);
+    if(k === -1) return;
+    var s = over.width / 960, c = over.width / 2, p = posts[k];
+    octx.globalCompositeOperation = 'source-over';
+    octx.globalAlpha = 0.8;
+    octx.fillStyle = col.bg;
+    octx.beginPath();
+    octx.arc(c, c, (BARK_IN + 100) * s, 0, TAU);
+    octx.fill();
+    octx.globalAlpha = 1;
+    octx.globalCompositeOperation = 'destination-out';
+    octx.beginPath();
+    octx.arc(c, c, p.b * s, 0, TAU);
+    octx.arc(c, c, Math.max(0, p.a - (k === 0 ? p.a : 0)) * s, 0, TAU, true);
+    octx.fill();
+    octx.beginPath();
+    octx.arc(c, c, (BARK_IN + 95) * s, p.a1 - HALF_PI, p.a2 - HALF_PI);
+    octx.arc(c, c, (BARK_IN - 1) * s, p.a2 - HALF_PI, p.a1 - HALF_PI, true);
+    octx.closePath();
+    octx.fill();
+    octx.globalCompositeOperation = 'source-over';
+  }
+
+  /* ── 视图：缩放与平移改外层的 CSS 变换，手势进行中直接缩放位图，
+     停下后按新倍数重画一张清晰的 ── */
   var zs = 1, ztx = 0, zty = 0, settle = null;
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
   function applyView(){
-    svg.style.transform = (zs > 1.001)
+    art.style.transform = (zs > 1.001)
       ? 'translate(' + f1(ztx) + 'px,' + f1(zty) + 'px) scale(' + zs.toFixed(3) + ')'
       : '';
-    svg.classList.toggle('zoomed', zs > 1.01);
-    svg.classList.add('moving');
+    art.classList.toggle('zoomed', zs > 1.01);
     clearTimeout(settle);
-    settle = setTimeout(function(){ svg.classList.remove('moving'); }, 180);
+    settle = setTimeout(function(){
+      var px = wantPx();
+      if(Math.abs(px - rendered) / rendered > 0.12) renderAll();
+    }, 220);
   }
   function baseSize(){ return parseFloat(root.style.getPropertyValue('--tr-size')) || 600; }
   function clampView(){
@@ -469,7 +549,7 @@ body.tr-page .top-link{ display:none !important; }
     zty = Math.max(-lim, Math.min(lim, zty));
   }
   function zoomAt(cx, cy, factor){
-    var rb = svg.getBoundingClientRect();
+    var rb = art.getBoundingClientRect();
     var ox = rb.left + rb.width / 2 - ztx, oy = rb.top + rb.height / 2 - zty;   // 未变换时的中心
     var lx = (cx - ox - ztx) / zs, ly = (cy - oy - zty) / zs;
     var ns = Math.max(1, Math.min(6, zs * factor));
@@ -479,25 +559,30 @@ body.tr-page .top-link{ display:none !important; }
     clampView();
     applyView();
   }
-  /* 屏幕坐标换成树的坐标（viewBox 单位）；getBoundingClientRect 已经算进了缩放和平移 */
+  /* 屏幕坐标换成树的坐标；getBoundingClientRect 已经算进了缩放和平移 */
   function treePoint(cx, cy){
-    var rb = svg.getBoundingClientRect();
+    var rb = art.getBoundingClientRect();
     var k = 960 / rb.width;
     return { x: (cx - rb.left - rb.width / 2) * k, y: (cy - rb.top - rb.height / 2) * k };
   }
 
   /* ── 尺寸：树占满舞台较短的一边 ── */
+  var lastSize = 0;
   function resize(){
     mobile = window.matchMedia('(max-width:768px)').matches;
     var header = document.querySelector('.header');
     var top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
     document.documentElement.style.setProperty('--tr-top', top + 'px');
     var W = root.clientWidth, H = root.clientHeight;
-    var size = Math.floor(Math.min(W - 24, H - 56) * (mobile ? 1 : 0.94));
-    root.style.setProperty('--tr-size', Math.max(240, size) + 'px');
+    var size = Math.max(240, Math.floor(Math.min(W - 24, H - 56) * (mobile ? 1 : 0.94)));
+    root.style.setProperty('--tr-size', size + 'px');
+    over.width = over.height = Math.round(size * dpr);
     $('trHint').textContent = mobile ? '点按查看 · 双指放大 · 双击复原'
                                      : '悬停查看 · 点击详情 · 滚轮放大 · 双击复原';
     setShift();
+    drawOverlay();
+    if(lastSize && size !== lastSize) renderAll();
+    lastSize = size;
   }
 
   /* 面板打开时，树让到面板左边（手机上让到面板上方） */
@@ -519,14 +604,7 @@ body.tr-page .top-link{ display:none !important; }
 
   /* ── 选中 / 悬停 ── */
   var current = -1, hover = -1;
-  function mark(){
-    var k = hover !== -1 ? hover : current;
-    svg.classList.toggle('focus', k !== -1);
-    ringEls.forEach(function(g, i){ g.classList.toggle('on', i === k); });
-    barkEls.forEach(function(grp, i){
-      grp.forEach(function(p){ p.classList.toggle('on', i === k); });
-    });
-  }
+  function mark(){ drawOverlay(); }
 
   function select(i){
     if(i < 0 || i >= N) return;
@@ -566,8 +644,7 @@ body.tr-page .top-link{ display:none !important; }
   }
 
   function showTip(i, cx, cy){
-    hover = i;
-    mark();
+    if(i !== hover){ hover = i; mark(); }
     if(i === -1){ tip.classList.remove('show'); return; }
     var p = posts[i];
     tipDate.textContent = p.date;
@@ -585,8 +662,8 @@ body.tr-page .top-link{ display:none !important; }
   var pointers = {}, moved = 0, pinch0 = 0, zoom0 = 1, dragging = false;
   function list(){ return Object.keys(pointers).map(function(k){ return pointers[k]; }); }
 
-  svg.addEventListener('pointerdown', function(e){
-    try{ svg.setPointerCapture(e.pointerId); }catch(err){}
+  art.addEventListener('pointerdown', function(e){
+    try{ art.setPointerCapture(e.pointerId); }catch(err){}
     pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
     var ps = list();
     if(ps.length === 1){ moved = 0; dragging = true; }
@@ -596,7 +673,7 @@ body.tr-page .top-link{ display:none !important; }
       moved = 99;
     }
   });
-  svg.addEventListener('pointermove', function(e){
+  art.addEventListener('pointermove', function(e){
     var prev = pointers[e.pointerId];
     if(!prev){
       if(e.pointerType === 'mouse') showTip(hitAt(e.clientX, e.clientY), e.clientX, e.clientY);
@@ -612,7 +689,7 @@ body.tr-page .top-link{ display:none !important; }
     var dx = e.clientX - prev.x, dy = e.clientY - prev.y;
     moved += Math.abs(dx) + Math.abs(dy);
     if(moved > 5 && zs > 1){
-      svg.classList.add('dragging');
+      art.classList.add('dragging');
       ztx += dx; zty += dy;
       clampView();
       applyView();
@@ -624,23 +701,23 @@ body.tr-page .top-link{ display:none !important; }
     delete pointers[e.pointerId];
     if(list().length) return;
     dragging = false;
-    svg.classList.remove('dragging');
+    art.classList.remove('dragging');
     if(moved <= 5 && e.type === 'pointerup'){
       var h = hitAt(e.clientX, e.clientY);
       if(h !== -1) select(h); else deselect();
       if(e.pointerType !== 'mouse') showTip(-1);
     }
   }
-  svg.addEventListener('pointerup', end);
-  svg.addEventListener('pointercancel', end);
-  svg.addEventListener('pointerleave', function(e){ if(e.pointerType === 'mouse' && !dragging) showTip(-1); });
+  art.addEventListener('pointerup', end);
+  art.addEventListener('pointercancel', end);
+  art.addEventListener('pointerleave', function(e){ if(e.pointerType === 'mouse' && !dragging) showTip(-1); });
 
-  svg.addEventListener('wheel', function(e){
+  art.addEventListener('wheel', function(e){
     e.preventDefault();
     var dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
     zoomAt(e.clientX, e.clientY, Math.exp(-dy * 0.0018));
   }, { passive:false });
-  svg.addEventListener('dblclick', function(){
+  art.addEventListener('dblclick', function(){
     zs = 1; ztx = zty = 0;
     applyView();
   });
@@ -659,10 +736,19 @@ body.tr-page .top-link{ display:none !important; }
     rt = setTimeout(resize, 100);
   });
 
+  /* 右上角切换主题时换色，整棵重画 */
+  new MutationObserver(function(){ readColors(); renderAll(); drawOverlay(); })
+    .observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+  /* 字体晚到时，先画的字可能是后备字体，到了再整棵重画一遍 */
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){
+    if(grown >= N) renderAll();
+  });
+
   document.body.classList.add('tr-page');
   root.classList.add('ready');
+  readColors();
   resize();
-  applyView();
+  if(reduced) renderAll(); else grow();
 })();
 </script>
 
