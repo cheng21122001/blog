@@ -1,6 +1,6 @@
 {{- define "main" }}
 
-{{- /* 收集词句素材：标题 + 正文按“句末标点”断出的完整句子 */ -}}
+{{- /* 收集素材：标题 + 正文按“句末标点”断出的句子；脚本里再拆成单个汉字当雨滴 */ -}}
 {{- $titles := slice }}
 {{- $frags := slice }}
 {{- range (where site.RegularPages "Section" "posts") }}
@@ -44,6 +44,11 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
 #wordRain{
   position:fixed; inset:0; width:100%; height:100%;
   z-index:0; pointer-events:none;
+}
+/* 导航栏压在字雨上面，字不会落到站名和菜单上 */
+.header{
+  position:relative; z-index:2;
+  background:var(--theme);
 }
 /* 标题撤了之后，搜索框自己往下落到视觉重心上 */
 .search-hero{
@@ -105,87 +110,201 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
 <script>
 (function(){
   var canvas = document.getElementById('wordRain');
-  if(!canvas) return;
+  if(!canvas || !canvas.getContext) return;
 
-  var pool = (window.__RAIN_POOL__ || []).filter(function(s){ return s && s.length; });
-  if(pool.length === 0) return;
+  /* 把标题和句子拆成单个汉字当雨滴；常用字出现得多，所以不去重 */
+  var chars = [];
+  (window.__RAIN_POOL__ || []).forEach(function(s){
+    Array.from(s || '').forEach(function(c){
+      if(/[㐀-鿿]/.test(c)) chars.push(c);
+    });
+  });
+  if(chars.length === 0) return;
 
   var ctx = canvas.getContext('2d');
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
-  var W, H, cols, drops, fontSize, colGap, rowGap;
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var W = 0, H = 0, cols = [], ink = '', dark = false;
+  var box = null, boxAt = 0;
 
-  function pick(){ return pool[(Math.random()*pool.length)|0]; }
+  /* 同一种墨色分深、中、浅三档：浅的铺底、深的压在上面，互相叠着 */
+  var TIERS = [
+    { share: 0.42, light: 0.13, dark: 0.12 },
+    { share: 0.36, light: 0.36, dark: 0.30 },
+    { share: 0.22, light: 0.80, dark: 0.66 }
+  ];
+  /* 几种粗重字形混排：粗宋、特粗宋、粗黑体，偶尔一个常规宋 */
+  var FACES = [
+    { w: 900, fam: '"Songti SC","Source Han Serif SC","Noto Serif SC",STSong,serif', p: 0.34 },
+    { w: 700, fam: '"Songti SC","Source Han Serif SC","Noto Serif SC",STSong,serif', p: 0.30 },
+    { w: 700, fam: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif',    p: 0.26 },
+    { w: 400, fam: '"Songti SC","Source Han Serif SC","Noto Serif SC",STSong,serif', p: 0.10 }
+  ];
 
-  function themeColors(){
-    var dark = document.documentElement.getAttribute('data-theme') === 'dark'
-      || (document.documentElement.getAttribute('data-theme') !== 'light'
-          && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    return dark
-      ? { faint:'rgba(200,200,200,0.10)', lead:'rgba(230,230,230,0.32)' }
-      : { faint:'rgba(30,30,30,0.06)',    lead:'rgba(20,20,20,0.22)' };
+  function rand(a, b){ return a + Math.random() * (b - a); }
+  function pickChar(){ return chars[(Math.random() * chars.length) | 0]; }
+  function pickFrom(list){
+    var r = Math.random();
+    for(var i=0;i<list.length;i++){ r -= (list[i].share || list[i].p); if(r <= 0) return list[i]; }
+    return list[list.length - 1];
   }
-  var colors = themeColors();
+
+  function readTheme(){
+    var t = document.documentElement.getAttribute('data-theme');
+    dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    ink = dark ? '#ececea' : '#17171a';
+    sprites = {};
+  }
+
+  /* 每种字形第一次出现时画成一小张图，之后每帧只贴图 */
+  var sprites = {};
+  function sprite(g){
+    var key = g.ch + '|' + g.size + '|' + g.face.w + g.face.fam.length;
+    var s = sprites[key];
+    if(s) return s;
+    var px = Math.ceil(g.size * 1.3 * dpr);
+    var c = document.createElement('canvas');
+    c.width = c.height = px;
+    var x = c.getContext('2d');
+    x.fillStyle = ink;
+    x.font = g.face.w + ' ' + (g.size * dpr) + 'px ' + g.face.fam;
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.fillText(g.ch, px / 2, px / 2);
+    s = { img: c, w: px / dpr };
+    sprites[key] = s;
+    return s;
+  }
+
+  /* 一个字：大多 11–16px，偶尔大到 22px；大字旁边有时挂一个小字 */
+  function makeGlyph(){
+    var big = Math.random() < 0.18;
+    var g = {
+      ch: pickChar(),
+      size: Math.round(big ? rand(18, 22) : rand(11, 16)),
+      face: pickFrom(FACES),
+      tier: pickFrom(TIERS),
+      dx: rand(-1, 1),
+      kid: null
+    };
+    if(big && Math.random() < 0.5){
+      var ks = Math.round(rand(7, 9));
+      /* 小字贴在大字右上角：横向紧挨着大字，上沿和大字对齐，不压到别的字 */
+      g.kid = { ch: pickChar(), size: ks, face: FACES[2], tier: TIERS[Math.random() < 0.5 ? 1 : 2],
+                dx: g.size / 2 + ks / 2 + 1, dy: -(g.size - ks) / 2 };
+    }
+    return g;
+  }
+
+  /* 一串接一串往下掉：串里的字上下紧挨但不重叠，串和串之间留空 */
+  function gapAfter(){ return Math.random() < 0.3 ? rand(60, 220) : 0; }
+  /* 新字放在这一列当前最上面那个字的上方：两字中心距 = 两字半高之和 + 2px */
+  function stackOn(c, g){
+    c.top -= (c.topSize + g.size) / 2 + 2 + gapAfter();
+    c.topSize = g.size;
+    g.y = c.top;
+  }
+
+  function fillColumn(c, fromY, toY){
+    c.top = fromY; c.topSize = 0;
+    while(c.top > toY){
+      var g = makeGlyph();
+      stackOn(c, g);
+      c.glyphs.push(g);
+    }
+  }
 
   function setup(){
     W = window.innerWidth; H = window.innerHeight;
-    canvas.width = W*dpr; canvas.height = H*dpr;
-    canvas.style.width = W+'px'; canvas.style.height = H+'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    fontSize = W < 480 ? 11 : 13;
-    colGap = fontSize * 1.15;                 // 列间距（更密）
-    rowGap = fontSize * 1.12;                 // 字间距
-    cols = Math.floor(W / colGap);
-    drops = [];
-    for(var i=0;i<cols;i++){
-      drops.push({ y: (Math.random()*2-1)*H, txt: pick(), speed: 0.4 + Math.random()*0.9 });
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    cols = [];
+    /* 列与列之间至少放得下最大的字加旁边的小字，左右不会碰到：电脑约 35 列，手机约 9 列 */
+    var gap = 36;
+    for(var x = rand(12, gap); x < W - 12; x += rand(gap, gap * 1.4)){
+      var c = { x: x, speed: rand(10, 22), glyphs: [], top: 0 };
+      fillColumn(c, H + rand(0, 200), -40);
+      cols.push(c);
     }
+    measureBox();
   }
 
-  function draw(){
-    ctx.clearRect(0,0,W,H);
-    /* 与全站统一字体保持一致 */
-    ctx.font = fontSize + 'px ' + (getComputedStyle(document.body).fontFamily
-      || '-apple-system,"PingFang SC","Microsoft YaHei",sans-serif');
-    ctx.textBaseline = 'top';
-    for(var i=0;i<cols;i++){
-      var d = drops[i];
-      var x = i * colGap + colGap*0.15;
-      var chars = d.txt.split('');
-      var len = chars.length;
-      for(var j=0;j<len;j++){
-        var cy = d.y + j*rowGap;
-        if(cy < -fontSize || cy > H) continue;
-        // 句尾字略深，整句由深到浅，读起来像一句话在坠落
-        ctx.fillStyle = (j >= len-2) ? colors.lead : colors.faint;
-        ctx.fillText(chars[j], x, cy);
-      }
-      d.y += d.speed;
-      if(d.y - len*rowGap > H){
-        d.y = -len*rowGap - Math.random()*H*0.5;   // 整句从顶部之上重新落下
-        d.txt = pick(); d.speed = 0.4 + Math.random()*0.9;
-      }
-    }
-    if(!reduce) requestAnimationFrame(draw);
+  /* 搜索框和结果所在的区域：这里的字压淡，输入和结果更清楚 */
+  function measureBox(){
+    var el = document.getElementById('searchbox');
+    if(!el) return;
+    var r = el.getBoundingClientRect();
+    box = { l: r.left - 24, r: r.right + 24, t: r.top - 24, b: r.bottom + 24 };
+    boxAt = performance.now();
   }
 
+  function draw1(g, x, y, fade){
+    var s = sprite(g);
+    ctx.globalAlpha = (dark ? g.tier.dark : g.tier.light) * fade;
+    ctx.drawImage(s.img, x - s.w / 2, y - s.w / 2, s.w, s.w);
+  }
+
+  var last = 0;
+  function frame(now){
+    var dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+    last = now;
+    if(now - boxAt > 500) measureBox();
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    /* 按深浅分三遍画，浅的在下、深的在上 */
+    for(var t=0;t<TIERS.length;t++){
+      var tier = TIERS[t];
+      for(var i=0;i<cols.length;i++){
+        var c = cols[i];
+        for(var j=0;j<c.glyphs.length;j++){
+          var g = c.glyphs[j];
+          if(t === 0) g.y += c.speed * dt;
+          var x = c.x + g.dx;
+          if(g.y < -30 || g.y > H + 30) continue;
+          var fade = (box && x > box.l && x < box.r && g.y > box.t && g.y < box.b) ? 0.35 : 1;
+          if(g.tier === tier) draw1(g, x, g.y, fade);
+          if(g.kid && g.kid.tier === tier) draw1(g.kid, x + g.kid.dx, g.y + g.kid.dy, fade);
+        }
+        if(t === 0){
+          c.top += c.speed * dt;
+          /* 掉出底部的字挪回顶上，换一个新字接在这一列最上面 */
+          for(var k=0;k<c.glyphs.length;k++){
+            if(c.glyphs[k].y - 30 > H){
+              var n = makeGlyph();
+              stackOn(c, n);
+              c.glyphs[k] = n;
+            }
+          }
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+    if(!reduce) requestAnimationFrame(frame);
+  }
+
+  readTheme();
   setup();
-  if(reduce){
-    // 静态一屏，不滚动
-    for(var k=0;k<drops.length;k++) drops[k].y = Math.random()*H;
-    draw();
-  } else {
-    draw();
-  }
+  requestAnimationFrame(frame);
 
   var rt;
   window.addEventListener('resize', function(){
-    clearTimeout(rt); rt = setTimeout(function(){ colors=themeColors(); setup(); }, 200);
+    clearTimeout(rt);
+    rt = setTimeout(function(){ setup(); if(reduce) requestAnimationFrame(frame); }, 200);
   });
 
-  // 主题切换时更新配色
-  var mo = new MutationObserver(function(){ colors = themeColors(); });
-  mo.observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+  /* 主题切换时换色：清掉缓存的字图，按新颜色重画 */
+  new MutationObserver(function(){
+    readTheme();
+    if(reduce) requestAnimationFrame(frame);
+  }).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+
+  /* 字体晚到时，缓存里可能是后备字体画的字，到了再重画一遍 */
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){
+    sprites = {};
+    if(reduce) requestAnimationFrame(frame);
+  });
 })();
 </script>
 
