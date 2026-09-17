@@ -392,17 +392,51 @@ body.tr-page .top-link{ display:none !important; }
     bctx.arc(CX, CX, PITH * 0.55 * S, 0, TAU);
     bctx.fill();
   }
+  /* 字形图集：旋转着直接 fillText 几千个汉字，浏览器上屏时要逐字描轮廓，
+     整棵树光栅化要两三秒（2026-09 实测）。改成每次重画前把用到的「字 + 字号」
+     正着画进一张图集，年轮上只做旋转贴图，整棵树几十毫秒 */
+  var atlas = document.createElement('canvas'), actx = atlas.getContext('2d');
+  var cells = {};
+  function buildAtlas(){
+    cells = {};
+    var list = [];
+    posts.forEach(function(p){
+      p.px = Math.max(1.5, Math.round(p.fs * S * 2) / 2);
+      p.glyphs.forEach(function(ch){
+        if(ch === '　' || ch === ' ') return;
+        var k = ch + '|' + p.px;
+        if(cells[k]) return;
+        var w = Math.ceil(p.px * 1.25) + 2;
+        cells[k] = { ch: ch, px: p.px, w: w, base: Math.round(w * 0.8) };
+        list.push(cells[k]);
+      });
+    });
+    /* 按格子大小排好，一行一行往下铺 */
+    list.sort(function(a, b){ return b.w - a.w || a.px - b.px; });
+    var AW = 4096, x = 0, y = 0, rowH = 0;
+    list.forEach(function(o){
+      if(x + o.w > AW){ x = 0; y += rowH; rowH = 0; }
+      o.x = x; o.y = y; x += o.w; rowH = Math.max(rowH, o.w);
+    });
+    atlas.width = AW; atlas.height = Math.max(1, y + rowH);
+    actx.fillStyle = col.ink;
+    actx.textAlign = 'center';
+    actx.textBaseline = 'alphabetic';
+    var lastPx = -1;
+    list.forEach(function(o){
+      if(o.px !== lastPx){ actx.font = o.px + 'px ' + col.serif; lastPx = o.px; }
+      actx.fillText(o.ch, o.x + o.w / 2, o.y + o.base);
+    });
+  }
   function drawRing(p){
-    bctx.fillStyle = col.ink;
     bctx.globalAlpha = p.alpha;
-    bctx.font = (p.fs * S).toFixed(2) + 'px ' + col.serif;
-    bctx.textAlign = 'center';
-    bctx.textBaseline = 'alphabetic';
     var r = p.rad * S;
     for(var j=0;j<p.glyphs.length;j++){
+      var o = cells[p.glyphs[j] + '|' + p.px];
+      if(!o) continue;
       var a = (j + 0.5) * p.step, c = Math.cos(a), s = Math.sin(a);
       bctx.setTransform(c, s, -s, c, CX + r * s, CX - r * c);
-      bctx.fillText(p.glyphs[j], 0, 0);
+      bctx.drawImage(atlas, o.x, o.y, o.w, o.w, -o.w / 2, -o.base, o.w, o.w);
     }
     bctx.setTransform(1, 0, 0, 1, 0, 0);
   }
@@ -467,6 +501,7 @@ body.tr-page .top-link{ display:none !important; }
     base.width = base.height = px;
     S = px / 960; CX = px / 2;
     rendered = px;
+    buildAtlas();
   }
   function renderAll(){
     prepare(wantPx());
