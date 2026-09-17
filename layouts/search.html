@@ -56,8 +56,10 @@ window.__RAIN_POOL__ = {{ $pool | jsonify | safeJS }};
   position:relative; z-index:1;
   display:flex; flex-direction:column; align-items:center;
   min-height:calc(100vh - var(--header-height) - 6rem);
-  padding-top:4vh;
+  padding-top:0;
 }
+/* 纸条紧贴导航栏下面那根线：这一页去掉 main 自带的上内边距 */
+.main{ padding-top:0; }
 
 /* 搜索区是一张浮在字雨上的纸条：实底纸色、2px 小圆角，不画外框不加阴影，
    只靠底部一道墨线立住；搜出来的条目接在同一张纸上往下排 */
