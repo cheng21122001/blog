@@ -13,6 +13,7 @@
     <button class="collage-open" type="button" data-src="{{ $p.RelPermalink }}"
             aria-label="放大查看第 {{ $n }} 幅">
       <img src="{{ $p.RelPermalink }}" width="{{ $p.Width }}" height="{{ $p.Height }}"
+           style="--w:{{ $p.Width }};--h:{{ $p.Height }}"
            alt="{{ with (index $.Page.Params.plates $i) }}{{ . }}{{ else }}《{{ $.Page.Title }}》第 {{ $n }} 幅{{ end }}"
            loading="{{ cond (eq $i 0) "eager" "lazy" }}" decoding="async">
     </button>

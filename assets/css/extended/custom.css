@@ -786,13 +786,23 @@ details.toc .inner {
     line-height: 0;
 }
 
+/* 宽度必须是算得出来的值，不能写 auto：图还没下载时 auto 的宽高都是 0，
+   十幅图叠在同一处，全落进浏览器「快滚到了」的范围，lazy 等于没写，
+   一进门就把整篇的图全下完。--w / --h 是 shortcode 写进来的原图尺寸，
+   取「栏宽、原图宽、限高折算出的宽」三者最小，和原先 auto 的结果一样；
+   ±2px 是上下（左右）两条纸边。 */
 .collage-open img {
+    --plate-max-h: 85vh;
     display: block;
     margin: 0 auto;
-    width: auto;
+    width: min(
+        100%,
+        calc(var(--w) * 1px + 2px),
+        calc((var(--plate-max-h) - 2px) * var(--w) / var(--h) + 2px)
+    );
     height: auto;
     max-width: 100%;
-    max-height: 85vh;
+    max-height: var(--plate-max-h);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--theme);
@@ -887,6 +897,6 @@ details.toc .inner {
     }
 
     .collage-open img {
-        max-height: 78vh;
+        --plate-max-h: 78vh;
     }
 }

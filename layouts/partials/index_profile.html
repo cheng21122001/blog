@@ -1,7 +1,11 @@
 <div class="profile">
-    {{- /* 首页 ASCII 舞者背景水印；文件缺失时自动不渲染，不报错 */ -}}
-    {{- with resources.Get "images/hero-ascii.png" }}
+    {{- /* 首页 ASCII 舞者背景水印；文件缺失时自动不渲染，不报错。
+           无损 WebP（和原 PNG 逐像素相同，体积不到一半）；文件名带指纹，
+           配合 vercel.json 的长缓存，回访时不用再向服务器确认一遍 */ -}}
+    {{- with resources.Get "images/hero-ascii.webp" }}
+    {{- with . | fingerprint }}
     <div class="ascii-bg" aria-hidden="true" style="background-image:url('{{ .RelPermalink }}');"></div>
+    {{- end }}
     {{- end }}
     {{- with site.Params.profileMode }}
     <div class="profile_inner">
