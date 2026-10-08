@@ -1,6 +1,7 @@
 {{- define "main" }}
 
 {{- /* 时间正序：最早的一篇是髓心，越往外越新，最外一圈是最新的一篇 */ -}}
+{{- /* 一页几棵小树：2024 年及以前合成一棵，之后每年一棵（分组在脚本里做） */ -}}
 {{- $pages := (where site.RegularPages "Section" "posts").ByDate }}
 {{- $years := $pages.GroupByDate "2006" "asc" }}
 
@@ -10,12 +11,10 @@
   <h1 class="sr-only">{{ .Title }}</h1>
 
   <div class="tr-stage" id="trStage">
-    {{- /* 整棵树画进一张位图（trBase），悬停高亮是盖在上面的一层蒙版（trOver）：
-           几千个字只在打开、缩放停下、换主题时画一次，鼠标移动不会让整棵树重绘 */ -}}
-    <div class="tr-art" id="trArt" aria-hidden="true">
-      <canvas id="trBase"></canvas>
-      <canvas id="trOver"></canvas>
-    </div>
+    {{- /* 每棵树画进一张位图，悬停高亮是盖在上面的一层蒙版：
+           几千个字只在打开、缩放停下、换主题时画一次，鼠标移动不会让树重绘。
+           树的两张画布由脚本按分组生成 */ -}}
+    <div class="tr-art" id="trArt" aria-hidden="true"></div>
   </div>
 
   <div class="tr-tip" id="trTip">
@@ -95,13 +94,13 @@ body.tr-page .top-link{ display:none !important; }
 }
 .tr-root.shift .tr-stage{ transform:translateX(var(--tr-shift,0px)); }
 .tr-art{
-  position:relative;
-  width:var(--tr-size,600px); height:var(--tr-size,600px);
+  position:absolute; inset:0;
   touch-action:none;
   cursor:default;
   user-select:none; -webkit-user-select:none;
   will-change:transform;
 }
+.tr-tree{ position:absolute; }
 .tr-art canvas{
   position:absolute; inset:0;
   width:100%; height:100%;
@@ -242,7 +241,7 @@ body.tr-page .top-link{ display:none !important; }
 (function(){
   var root  = document.getElementById('trRoot');
   var panel = document.getElementById('trPanel');
-  if(!root || !panel || !document.getElementById('trBase').getContext) return;
+  if(!root || !panel || !document.createElement('canvas').getContext) return;
 
   var links = Array.prototype.slice.call(document.querySelectorAll('#trList .tr-node'));
   if(!links.length) return;
@@ -286,23 +285,57 @@ body.tr-page .top-link{ display:none !important; }
   });
   var N = posts.length;
 
-  /* ── 几何：单位是 viewBox 里的数，整棵树固定缩放到一屏 ── */
-  var PITH = 10, WOOD = 396, BARK_IN = 400, GAP = 1.2;
+  var art = $('trArt');
+  var HALF_PI = Math.PI / 2, TAU = Math.PI * 2;
 
-  /* 每圈的厚度随字数浮动（开平方后截上下限），加起来正好铺满半径。
-     文章越多，每圈越薄——字看不清时靠放大 */
-  var weights = posts.map(function(p){ return Math.max(9, Math.min(46, Math.sqrt(p.len))); });
-  var wsum = weights.reduce(function(s, w){ return s + w; }, 0);
-  var r = PITH + 3;
-  posts.forEach(function(p, i){
-    var t = (WOOD - PITH - 3) * weights[i] / wsum;
-    p.a = r; p.b = r + t; r += t;
+  /* ── 分树：2024 年及以前合成一棵，之后每年一棵；文章已按时间排好，树也就是从早到晚 ── */
+  var MERGE_UNTIL = 2024;
+  var trees = [], byKey = {};
+  posts.forEach(function(p){
+    var key = +p.year <= MERGE_UNTIL ? 'early' : p.year;
+    var t = byKey[key];
+    if(!t){ t = byKey[key] = { ti: trees.length, posts: [] }; trees.push(t); }
+    p.tree = t; p.k = t.posts.length; t.posts.push(p);
   });
 
-  var art = $('trArt'), base = $('trBase'), over = $('trOver');
-  var bctx = base.getContext('2d'), octx = over.getContext('2d');
-  if(!bctx || !octx) return;
-  var HALF_PI = Math.PI / 2, TAU = Math.PI * 2;
+  /* ── 几何：单位是树自己的数，所有树共用同一个「单位 → 像素」比例，
+     所以树皮、标题、髓心在每棵树上一样大，只有木质部的半径随篇幅不同 ── */
+  var PITH = 10, GAP = 1.2, SPAN = 383, BARK = 80;
+
+  /* 每圈的厚度随字数浮动（开平方后截上下限），加起来正好铺满这棵树的半径。
+     篇数少的树半径小，但不按比例缩到底（0.62 次方），不然三四圈的树只剩一个点 */
+  function weight(p){ return Math.max(9, Math.min(46, Math.sqrt(p.len))); }
+  var wmax = 0;
+  trees.forEach(function(t){
+    t.N = t.posts.length;
+    t.wsum = t.posts.reduce(function(s, p){ return s + weight(p); }, 0);
+    wmax = Math.max(wmax, t.wsum);
+  });
+  var VIEW_MAX = 0;
+  trees.forEach(function(t){
+    var span = Math.max(70, SPAN * Math.pow(t.wsum / wmax, 0.62));
+    t.WOOD = PITH + 3 + span;
+    t.BARK_IN = t.WOOD + 4;
+    t.OUT = t.BARK_IN + BARK;
+    t.VIEW = t.OUT * 2;
+    VIEW_MAX = Math.max(VIEW_MAX, t.VIEW);
+    var r = PITH + 3;
+    t.posts.forEach(function(p){
+      var th = span * weight(p) / t.wsum;
+      p.a = r; p.b = r + th; r += th;
+    });
+
+    t.el = document.createElement('div');
+    t.el.className = 'tr-tree';
+    t.base = document.createElement('canvas');
+    t.over = document.createElement('canvas');
+    t.el.appendChild(t.base); t.el.appendChild(t.over);
+    art.appendChild(t.el);
+    t.bctx = t.base.getContext('2d');
+    t.octx = t.over.getContext('2d');
+    t.CX = 0; t.x = t.y = t.d = 0;
+  });
+  if(!trees[0].bctx || !trees[0].octx) return;
 
   /* ── 颜色和字体：从站点令牌里读，主题切换时重读 ── */
   var col = {};
@@ -316,7 +349,7 @@ body.tr-page .top-link{ display:none !important; }
   }
 
   /* ── 年轮：每圈算好字号、半径、每个字的角度步长 ── */
-  posts.forEach(function(p, i){
+  posts.forEach(function(p){
     var t = p.b - p.a - GAP;
     var fs = Math.max(1.2, t * 0.8);
     var rad = p.a + GAP / 2 + t * 0.14;              // 字从基线往外长
@@ -328,73 +361,78 @@ body.tr-page .top-link{ display:none !important; }
     p.fs = fs;
     p.rad = rad;
     p.step = (C - fs * 0.6) / n / rad;                 // 排满一圈，末尾留一点缝
-    p.alpha = i % 2 ? 0.56 : 0.82;                     // 早材深、晚材浅
+    p.alpha = p.k % 2 ? 0.56 : 0.82;                   // 早材深、晚材浅
   });
 
-  /* ── 树皮：一篇一组，每组几根长短不一的条，中间那根竖写标题 ── */
-  var slot = TAU / N;
-  var br = rng(hash('bark'));
-  var bars = [];
-  posts.forEach(function(p, i){
-    var chars = Array.from(p.title).slice(0, 5);
-    var need = chars.length * 9 + 12;
-    var cnt = Math.max(2, Math.round(slot * BARK_IN / 24));
-    var mid = Math.floor(cnt / 2);
-    var gapA = 0.0035;
-    for(var k=0;k<cnt;k++){
-      var a1 = i * slot + k * slot / cnt + gapA;
-      var a2 = i * slot + (k + 1) * slot / cnt - gapA;
-      var L = k === mid ? Math.max(need, 34) : 16 + br() * 26;
-      bars.push({ a1: a1, a2: a2, r2: BARK_IN + L, label: k === mid ? chars.join('') : null });
-    }
-    p.a1 = i * slot; p.a2 = (i + 1) * slot;
+  trees.forEach(function(t){
+    /* ── 树皮：一篇一组，每组几根长短不一的条，中间那根竖写标题 ── */
+    var slot = t.slot = TAU / t.N;
+    var br = rng(hash('bark' + (t.ti || '')));
+    t.bars = [];
+    t.posts.forEach(function(p, i){
+      var chars = Array.from(p.title).slice(0, 5);
+      var need = chars.length * 9 + 12;
+      var cnt = Math.max(2, Math.round(slot * t.BARK_IN / 24));
+      var mid = Math.floor(cnt / 2);
+      var gapA = 1.4 / t.BARK_IN;
+      for(var k=0;k<cnt;k++){
+        var a1 = i * slot + k * slot / cnt + gapA;
+        var a2 = i * slot + (k + 1) * slot / cnt - gapA;
+        var L = k === mid ? Math.max(need, 34) : 16 + br() * 26;
+        t.bars.push({ a1: a1, a2: a2, r2: t.BARK_IN + L, label: k === mid ? chars.join('') : null });
+      }
+      p.a1 = i * slot; p.a2 = (i + 1) * slot;
+    });
+
+    /* ── 裂缝：从外缘往里的窄楔形，边缘带一点锯齿；右侧一道直通髓心的细缝。
+       圈数少的树裂缝也少 ── */
+    var cr = rng(hash('cracks' + (t.ti || '')));
+    var all = [[-0.72, 0.48], [0.62, 0.72], [2.62, 0.30], [3.72, 0.62], [5.02, 0.78]];
+    var use = t.N >= 12 ? all : t.N >= 6 ? [all[1], all[3], all[4]] : [all[1], all[3]];
+    t.cracks = [];
+    use.forEach(function(c){
+      var ang = c[0] + (cr() - 0.5) * 0.25;
+      var rEnd = t.WOOD * c[1];
+      var w0 = 11 + cr() * 8;
+      var steps = 16, side1 = [], side2 = [];
+      for(var s=0;s<=steps;s++){
+        var rr = t.OUT - (t.OUT - rEnd) * s / steps;
+        var half = w0 * Math.pow(1 - s / steps, 0.9) + 0.4;
+        var jit = (cr() - 0.5) * 3;
+        var nx = Math.cos(ang), ny = Math.sin(ang);    // 垂直于半径的方向
+        var cx = rr * Math.sin(ang) + jit * nx * 0.4, cy = -rr * Math.cos(ang) + jit * ny * 0.4;
+        side1.push([cx + nx * half, cy + ny * half]);
+        side2.unshift([cx - nx * half, cy - ny * half]);
+      }
+      t.cracks.push(side1.concat(side2));
+    });
+    t.cracks.push([[PITH + 6, -2.5], [t.OUT, -8], [t.OUT, 8], [PITH + 6, 2.5]]);
+
+    /* 年份写在右侧细缝里；两个年份挨得太近时，后一个错开写到缝的下沿 */
+    t.years = [];
+    var lastX = -99, low = false;
+    t.posts.forEach(function(p, i){
+      if(i > 0 && t.posts[i-1].yi === p.yi) return;
+      low = p.a - lastX < 26 ? !low : false;
+      lastX = p.a;
+      t.years.push({ x: p.a + 1, y: low ? 13 : 2.8, text: p.year });
+    });
   });
 
-  /* ── 裂缝：从外缘往里的窄楔形，边缘带一点锯齿；右侧一道直通髓心的细缝 ── */
-  var cr = rng(hash('cracks'));
-  var OUT = BARK_IN + 80;
-  var cracks = [];
-  [[-0.72, 0.48], [0.62, 0.72], [2.62, 0.30], [3.72, 0.62], [5.02, 0.78]].forEach(function(c){
-    var ang = c[0] + (cr() - 0.5) * 0.25;
-    var rEnd = WOOD * c[1];
-    var w0 = 11 + cr() * 8;
-    var steps = 16, side1 = [], side2 = [];
-    for(var s=0;s<=steps;s++){
-      var rr = OUT - (OUT - rEnd) * s / steps;
-      var half = w0 * Math.pow(1 - s / steps, 0.9) + 0.4;
-      var jit = (cr() - 0.5) * 3;
-      var nx = Math.cos(ang), ny = Math.sin(ang);    // 垂直于半径的方向
-      var cx = rr * Math.sin(ang) + jit * nx * 0.4, cy = -rr * Math.cos(ang) + jit * ny * 0.4;
-      side1.push([cx + nx * half, cy + ny * half]);
-      side2.unshift([cx - nx * half, cy - ny * half]);
-    }
-    cracks.push(side1.concat(side2));
-  });
-  cracks.push([[PITH + 6, -2.5], [OUT, -8], [OUT, 8], [PITH + 6, 2.5]]);
-
-  /* 年份写在右侧细缝里；两个年份挨得太近时，后一个错开写到缝的下沿 */
-  var years = [];
-  var lastX = -99, low = false;
-  posts.forEach(function(p, i){
-    if(i > 0 && posts[i-1].yi === p.yi) return;
-    low = p.a - lastX < 26 ? !low : false;
-    lastX = p.a;
-    years.push({ x: p.a + 1, y: low ? 13 : 2.8, text: p.year });
-  });
-
-  /* ── 绘制：整棵树画进一张位图，只在打开、缩放停下、换主题时重画 ── */
-  var S = 1, CX = 0;                                   // 树单位 → 位图像素
-  function drawPith(){
+  /* ── 绘制：每棵树画进自己的位图，只在打开、缩放停下、换主题时重画 ── */
+  var S = 1;                                           // 树单位 → 位图像素，所有树共用
+  function drawPith(t){
+    var bctx = t.bctx;
     bctx.setTransform(1, 0, 0, 1, 0, 0);
     bctx.globalAlpha = 1;
     bctx.fillStyle = col.ink;
     bctx.beginPath();
-    bctx.arc(CX, CX, PITH * 0.55 * S, 0, TAU);
+    bctx.arc(t.CX, t.CX, PITH * 0.55 * S, 0, TAU);
     bctx.fill();
   }
   /* 字形图集：旋转着直接 fillText 几千个汉字，浏览器上屏时要逐字描轮廓，
      整棵树光栅化要两三秒（2026-09 实测）。改成每次重画前把用到的「字 + 字号」
-     正着画进一张图集，年轮上只做旋转贴图，整棵树几十毫秒 */
+     正着画进一张图集，年轮上只做旋转贴图，整棵树几十毫秒。几棵树共用一张 */
   var atlas = document.createElement('canvas'), actx = atlas.getContext('2d');
   var cells = {};
   function buildAtlas(){
@@ -429,6 +467,7 @@ body.tr-page .top-link{ display:none !important; }
     });
   }
   function drawRing(p){
+    var bctx = p.tree.bctx, CX = p.tree.CX;
     bctx.globalAlpha = p.alpha;
     var r = p.rad * S;
     for(var j=0;j<p.glyphs.length;j++){
@@ -440,11 +479,12 @@ body.tr-page .top-link{ display:none !important; }
     }
     bctx.setTransform(1, 0, 0, 1, 0, 0);
   }
-  function drawBark(){
+  function drawBark(t){
+    var bctx = t.bctx, CX = t.CX, BARK_IN = t.BARK_IN;
     bctx.setTransform(1, 0, 0, 1, 0, 0);
     bctx.globalAlpha = 0.86;
     bctx.fillStyle = col.ink;
-    bars.forEach(function(b){
+    t.bars.forEach(function(b){
       bctx.beginPath();
       bctx.arc(CX, CX, b.r2 * S, b.a1 - HALF_PI, b.a2 - HALF_PI);
       bctx.arc(CX, CX, BARK_IN * S, b.a2 - HALF_PI, b.a1 - HALF_PI, true);
@@ -456,7 +496,7 @@ body.tr-page .top-link{ display:none !important; }
     bctx.fillStyle = col.bg;
     bctx.font = (8.5 * S).toFixed(2) + 'px ' + col.serif;
     bctx.textBaseline = 'alphabetic';
-    bars.forEach(function(b){
+    t.bars.forEach(function(b){
       if(!b.label) return;
       var am = (b.a1 + b.a2) / 2;
       var left = am > Math.PI;
@@ -467,11 +507,12 @@ body.tr-page .top-link{ display:none !important; }
     });
     bctx.setTransform(1, 0, 0, 1, 0, 0);
   }
-  function drawCracks(){
+  function drawCracks(t){
+    var bctx = t.bctx, CX = t.CX;
     bctx.setTransform(1, 0, 0, 1, 0, 0);
     bctx.globalAlpha = 1;
     bctx.fillStyle = col.bg;
-    cracks.forEach(function(pts){
+    t.cracks.forEach(function(pts){
       bctx.beginPath();
       pts.forEach(function(q, k){
         if(k) bctx.lineTo(CX + q[0] * S, CX + q[1] * S);
@@ -481,88 +522,96 @@ body.tr-page .top-link{ display:none !important; }
       bctx.fill();
     });
   }
-  function drawYears(){
+  function drawYears(t){
+    var bctx = t.bctx, CX = t.CX;
     bctx.setTransform(1, 0, 0, 1, 0, 0);
     bctx.globalAlpha = 1;
     bctx.fillStyle = col.mute;
     bctx.font = (8 * S).toFixed(2) + 'px ' + col.sans;
     bctx.textAlign = 'left';
     bctx.textBaseline = 'alphabetic';
-    years.forEach(function(y){ bctx.fillText(y.text, CX + y.x * S, CX + y.y * S); });
+    t.years.forEach(function(y){ bctx.fillText(y.text, CX + y.x * S, CX + y.y * S); });
   }
+  function finishTree(t){ drawBark(t); drawCracks(t); drawYears(t); }
 
-  /* 位图边长 = 显示边长 × 像素比 × 缩放倍数，封顶，避免手机上位图过大 */
+  /* 位图比例 = 显示比例 × 像素比 × 缩放倍数；最大那棵的边长封顶，避免手机上位图过大 */
+  var K = 0.5;                                         // 树单位 → 屏幕 CSS 像素，由 layout() 定
   var rendered = 0, grown = N, growT0 = 0;
-  function wantPx(){
+  function wantS(){
     var cap = mobile ? 2800 : 4000;                  // Safari 的画布面积上限约 4096²，超了会整张变空白
-    return Math.min(cap, Math.round(baseSize() * dpr * Math.max(1, zs)));
+    return Math.min(cap / VIEW_MAX, K * dpr * Math.max(1, zs));
   }
-  function prepare(px){
-    base.width = base.height = px;
-    S = px / 960; CX = px / 2;
-    rendered = px;
+  function prepare(){
+    S = rendered = wantS();
+    trees.forEach(function(t){
+      t.base.width = t.base.height = Math.max(1, Math.round(t.VIEW * S));
+      t.CX = t.base.width / 2;
+    });
     buildAtlas();
   }
   function renderAll(){
-    prepare(wantPx());
-    bctx.clearRect(0, 0, base.width, base.height);
-    drawPith();
+    prepare();
+    trees.forEach(drawPith);
     posts.forEach(drawRing);
-    drawBark();
-    drawCracks();
-    drawYears();
+    trees.forEach(finishTree);
     grown = N;
   }
 
-  /* 打开时从髓心往外一圈圈长出来：每帧只补画新长出的几圈，画完就停 */
+  /* 打开时从最早那棵的髓心往外一圈圈长，一棵长完接着长下一棵：
+     每帧只补画新长出的几圈，画完就停 */
   function grow(){
-    prepare(wantPx());
-    bctx.clearRect(0, 0, base.width, base.height);
-    drawPith();
+    prepare();
+    trees.forEach(drawPith);
     grown = 0;
     growT0 = performance.now();
     requestAnimationFrame(growFrame);
   }
   function growFrame(now){
-    if(grown >= N) return;                             // 期间被整棵重画过
+    if(grown >= N) return;                             // 期间被整个重画过
     var target = Math.min(N, Math.floor((now - growT0) / 1800 * N) + 1);
-    while(grown < target){ drawRing(posts[grown]); grown++; }
-    drawCracks();
-    if(grown < N){ requestAnimationFrame(growFrame); return; }
-    drawBark();
-    drawCracks();
-    drawYears();
+    while(grown < target){
+      var p = posts[grown];
+      drawRing(p); grown++;
+      if(p.k === p.tree.N - 1) finishTree(p.tree);
+    }
+    if(grown < N){
+      if(posts[grown].k > 0) drawCracks(posts[grown].tree);
+      requestAnimationFrame(growFrame);
+    }
   }
 
-  /* ── 高亮：盖一层半透明底色，只把选中的那一圈和那组树皮挖出来 ── */
+  /* ── 高亮：在那一棵上盖一层半透明底色，只把选中的那一圈和那组树皮挖出来 ── */
   function drawOverlay(){
     var k = hover !== -1 ? hover : current;
-    octx.setTransform(1, 0, 0, 1, 0, 0);
-    octx.clearRect(0, 0, over.width, over.height);
+    trees.forEach(function(t){
+      t.octx.setTransform(1, 0, 0, 1, 0, 0);
+      t.octx.clearRect(0, 0, t.over.width, t.over.height);
+    });
     if(k === -1) return;
-    var s = over.width / 960, c = over.width / 2, p = posts[k];
+    var p = posts[k], t = p.tree, octx = t.octx;
+    var s = t.over.width / t.VIEW, c = t.over.width / 2;
     octx.globalCompositeOperation = 'source-over';
     octx.globalAlpha = 0.8;
     octx.fillStyle = col.bg;
     octx.beginPath();
-    octx.arc(c, c, (BARK_IN + 100) * s, 0, TAU);
+    octx.arc(c, c, (t.BARK_IN + 100) * s, 0, TAU);
     octx.fill();
     octx.globalAlpha = 1;
     octx.globalCompositeOperation = 'destination-out';
     octx.beginPath();
     octx.arc(c, c, p.b * s, 0, TAU);
-    octx.arc(c, c, Math.max(0, p.a - (k === 0 ? p.a : 0)) * s, 0, TAU, true);
+    octx.arc(c, c, (p.k === 0 ? 0 : p.a) * s, 0, TAU, true);
     octx.fill();
     octx.beginPath();
-    octx.arc(c, c, (BARK_IN + 95) * s, p.a1 - HALF_PI, p.a2 - HALF_PI);
-    octx.arc(c, c, (BARK_IN - 1) * s, p.a2 - HALF_PI, p.a1 - HALF_PI, true);
+    octx.arc(c, c, (t.BARK_IN + 95) * s, p.a1 - HALF_PI, p.a2 - HALF_PI);
+    octx.arc(c, c, (t.BARK_IN - 1) * s, p.a2 - HALF_PI, p.a1 - HALF_PI, true);
     octx.closePath();
     octx.fill();
     octx.globalCompositeOperation = 'source-over';
   }
 
-  /* ── 视图：缩放与平移改外层的 CSS 变换，手势进行中直接缩放位图，
-     停下后按新倍数重画一张清晰的 ── */
+  /* ── 视图：缩放与平移改外层的 CSS 变换（几棵树一起动），手势进行中直接缩放位图，
+     停下后按新倍数重画一遍清晰的 ── */
   var zs = 1, ztx = 0, zty = 0, settle = null;
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
   function applyView(){
@@ -572,16 +621,15 @@ body.tr-page .top-link{ display:none !important; }
     art.classList.toggle('zoomed', zs > 1.01);
     clearTimeout(settle);
     settle = setTimeout(function(){
-      var px = wantPx();
-      if(Math.abs(px - rendered) / rendered > 0.12) renderAll();
+      var s = wantS();
+      if(Math.abs(s - rendered) / rendered > 0.12) renderAll();
     }, 220);
   }
-  function baseSize(){ return parseFloat(root.style.getPropertyValue('--tr-size')) || 600; }
   function clampView(){
     if(zs <= 1.001){ zs = 1; ztx = zty = 0; return; }
-    var lim = baseSize() * (zs - 1) / 2 + 40;
-    ztx = Math.max(-lim, Math.min(lim, ztx));
-    zty = Math.max(-lim, Math.min(lim, zty));
+    var limX = root.clientWidth * (zs - 1) / 2 + 40, limY = root.clientHeight * (zs - 1) / 2 + 40;
+    ztx = Math.max(-limX, Math.min(limX, ztx));
+    zty = Math.max(-limY, Math.min(limY, zty));
   }
   function zoomAt(cx, cy, factor){
     var rb = art.getBoundingClientRect();
@@ -594,47 +642,69 @@ body.tr-page .top-link{ display:none !important; }
     clampView();
     applyView();
   }
-  /* 屏幕坐标换成树的坐标；getBoundingClientRect 已经算进了缩放和平移 */
-  function treePoint(cx, cy){
-    var rb = art.getBoundingClientRect();
-    var k = 960 / rb.width;
+  /* 屏幕坐标换成某棵树的坐标；getBoundingClientRect 已经算进了缩放和平移 */
+  function treePoint(t, cx, cy){
+    var rb = t.el.getBoundingClientRect();
+    var k = t.VIEW / rb.width;
     return { x: (cx - rb.left - rb.width / 2) * k, y: (cy - rb.top - rb.height / 2) * k };
   }
 
-  /* ── 尺寸：树占满舞台较短的一边 ── */
-  var lastSize = 0;
+  /* ── 排布：横屏一排，从早到晚；竖屏时最新那棵单独占下面一行。
+     所有树共用一个比例，正好放进舞台 ── */
+  function sum(a){ return a.reduce(function(s, v){ return s + v; }, 0); }
+  function layout(){
+    var W = root.clientWidth, H = root.clientHeight, availH = H - 44, n = trees.length;
+    var rows = (n > 1 && W < availH * 1.05) ? [trees.slice(0, n - 1), [trees[n - 1]]] : [trees];
+    var rowW = rows.map(function(r){ return sum(r.map(function(t){ return t.VIEW; })); });
+    var rowH = rows.map(function(r){ return Math.max.apply(null, r.map(function(t){ return t.VIEW; })); });
+    K = Math.max(0.12, Math.min((W - 16) / Math.max.apply(null, rowW), (availH - 8) / sum(rowH)));
+    var y = (availH - sum(rowH) * K) / 2 + 4;
+    rows.forEach(function(r, ri){
+      var x = (W - rowW[ri] * K) / 2;
+      r.forEach(function(t){
+        t.d = t.VIEW * K;
+        t.x = x; t.y = y + (rowH[ri] * K - t.d) / 2;
+        x += t.d;
+        t.el.style.left = f1(t.x) + 'px';
+        t.el.style.top = f1(t.y) + 'px';
+        t.el.style.width = t.el.style.height = f1(t.d) + 'px';
+        t.over.width = t.over.height = Math.max(1, Math.round(t.d * dpr));
+      });
+      y += rowH[ri] * K;
+    });
+  }
+
+  var lastK = 0;
   function resize(){
     mobile = window.matchMedia('(max-width:768px)').matches;
     var header = document.querySelector('.header');
     var top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
     document.documentElement.style.setProperty('--tr-top', top + 'px');
-    var W = root.clientWidth, H = root.clientHeight;
-    var size = Math.max(240, Math.floor(Math.min(W - 24, H - 56) * (mobile ? 1 : 0.94)));
-    root.style.setProperty('--tr-size', size + 'px');
-    over.width = over.height = Math.round(size * dpr);
+    layout();
     $('trHint').textContent = mobile ? '点按查看 · 双指放大 · 双击复原'
                                      : '悬停查看 · 点击详情 · 滚轮放大 · 双击复原';
     setShift();
     drawOverlay();
-    if(lastSize && size !== lastSize) renderAll();
-    lastSize = size;
+    if(lastK && K !== lastK) renderAll();
+    lastK = K;
   }
 
-  /* 面板打开时，树让到面板左边（手机上让到面板上方） */
+  /* 面板打开时，选中的那棵树让到面板左边（手机上让到面板上方） */
   function setShift(){
-    var open = panel.classList.contains('open');
+    var open = panel.classList.contains('open') && current !== -1;
     root.classList.toggle('shift', open);
     if(!open) return;
     var W = root.clientWidth, H = root.clientHeight;
-    var size = baseSize();
+    var t = posts[current].tree, shift;
     if(mobile){
       var free = H - panel.offsetHeight;
-      root.style.setProperty('--tr-shift', f1(Math.min(0, free / 2 - H / 2)) + 'px');
+      shift = Math.max(Math.min(0, free - 8 - (t.y + t.d)), Math.min(0, 4 - t.y));
     } else {
-      var left = panel.getBoundingClientRect().left - root.getBoundingClientRect().left;
-      var target = Math.max(size / 2 + 12, left / 2);
-      root.style.setProperty('--tr-shift', f1(Math.min(0, target - W / 2)) + 'px');
+      /* 面板还在滑入途中，位置按它停下后的样子算 */
+      var left = W - Math.max(window.innerWidth * 0.03, 18) - panel.offsetWidth;
+      shift = Math.max(Math.min(0, left - 12 - (t.x + t.d)), Math.min(0, 8 - t.x));
     }
+    root.style.setProperty('--tr-shift', f1(shift) + 'px');
   }
 
   /* ── 选中 / 悬停 ── */
@@ -661,21 +731,25 @@ body.tr-page .top-link{ display:none !important; }
   }
 
   function hitAt(cx, cy){
-    var p = treePoint(cx, cy);
-    var d = Math.hypot(p.x, p.y);
-    if(d > BARK_IN - 2){
-      if(d > BARK_IN + 90) return -1;
-      var ang = Math.atan2(p.x, -p.y);
-      if(ang < 0) ang += 2 * Math.PI;
-      return Math.min(N - 1, Math.floor(ang / slot));
+    for(var ti=0;ti<trees.length;ti++){
+      var t = trees[ti];
+      var p = treePoint(t, cx, cy);
+      var d = Math.hypot(p.x, p.y);
+      if(d > t.OUT) continue;
+      if(d > t.BARK_IN - 2){
+        var ang = Math.atan2(p.x, -p.y);
+        if(ang < 0) ang += 2 * Math.PI;
+        return t.posts[Math.min(t.N - 1, Math.floor(ang / t.slot))].i;
+      }
+      if(d < PITH) return t.posts[0].i;
+      var lo = 0, hi = t.N - 1;
+      while(lo < hi){
+        var m = (lo + hi) >> 1;
+        if(t.posts[m].b < d) lo = m + 1; else hi = m;
+      }
+      return t.posts[lo].i;
     }
-    if(d < PITH) return 0;
-    var lo = 0, hi = N - 1;
-    while(lo < hi){
-      var m = (lo + hi) >> 1;
-      if(posts[m].b < d) lo = m + 1; else hi = m;
-    }
-    return lo;
+    return -1;
   }
 
   function showTip(i, cx, cy){
@@ -771,7 +845,7 @@ body.tr-page .top-link{ display:none !important; }
     rt = setTimeout(resize, 100);
   });
 
-  /* 右上角切换主题时换色，整棵重画 */
+  /* 右上角切换主题时换色，全部重画 */
   new MutationObserver(function(){ readColors(); renderAll(); drawOverlay(); })
     .observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
   /* 字体晚到时，先画的字可能是后备字体，到了再整棵重画一遍 */
