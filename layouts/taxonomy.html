@@ -166,6 +166,13 @@ body.cz-page .top-link{ display:none !important; }
 .cz-chip[aria-pressed="true"]{ color:var(--cz-ink); border-color:var(--cz-ink); }
 .cz-tags.focusing .cz-chip[aria-pressed="false"]{ opacity:.5; }
 
+/* 顶上那排胶囊画面上不再出现：标签名直接写在星云里，点名字就是聚焦。
+   胶囊只留给键盘 Tab 和读屏 */
+.cz-root.ready .cz-bar{
+  position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+
 /* 小标签：比大标签小一号，没有色点 */
 .cz-tags{ max-width:100%; }
 .cz-subs[hidden]{ display:none; }
@@ -524,8 +531,8 @@ body.cz-page .top-link{ display:none !important; }
     canvas.width = Math.round(W * DPR);
     canvas.height = Math.round(H * DPR);
     F = mobile ? Math.min(W * 1.35, H * 0.8) : Math.min(W * 0.78, H) * 1.2;
-    $('czHint').textContent = mobile ? '拖动旋转 · 双指缩放 · 点按详情'
-                                     : '拖动旋转 · 滚轮缩放 · 悬停查看 · 点击详情';
+    $('czHint').textContent = mobile ? '点标签名进入 · 拖动旋转 · 双指缩放'
+                                     : '点标签名进入 · 拖动旋转 · 滚轮缩放 · 点击详情';
   }
 
   /* 面板打开时，把画面中心让到面板左边（手机上让到面板上方） */
@@ -533,7 +540,7 @@ body.cz-page .top-link{ display:none !important; }
     var open = panel.classList.contains('open');
     if(!open) return { cx: W / 2, cy: H / 2 + (mobile ? 30 : 10) };
     if(mobile){
-      var bar = root.querySelector('.cz-bar').getBoundingClientRect().bottom - root.getBoundingClientRect().top;
+      var bar = 0;
       return { cx: W / 2, cy: (bar + H - panel.offsetHeight) / 2 };
     }
     var right = W - (panel.getBoundingClientRect().left - root.getBoundingClientRect().left);
@@ -767,6 +774,8 @@ body.cz-page .top-link{ display:none !important; }
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     clusters.forEach(function(c){
+      c.lab = null;
+      c.subs.forEach(function(u){ u.lab = null; });
       var q = project(c.x, c.y, c.z);
       if(!q) return;
       var off = c.sigma * 0.95 * q.s + 10;
@@ -775,6 +784,8 @@ body.cz-page .top-link{ display:none !important; }
       ctx.font = '600 ' + fs.toFixed(1) + 'px ' + fontSerif;
       ctx.fillStyle = rgb(pal.dark ? mix(pal.tint[c.ci], [255,250,240], 0.45) : pal.ink, a);
       ctx.fillText(c.tag, q.x, q.y - off);
+      var lw = ctx.measureText(c.tag).width;
+      c.lab = [q.x - lw / 2 - 10, q.y - off - fs - 6, q.x + lw / 2 + 10, q.y - off + fs * 1.1 + 6];
       ctx.font = (fs * 0.62).toFixed(1) + 'px ' + fontSans;
       ctx.fillStyle = rgb(pal.dark ? pal.bg : pal.ink, a * 0.6);
       ctx.fillText(c.count + ' 篇', q.x, q.y - off + fs * 0.95);
@@ -785,7 +796,9 @@ body.cz-page .top-link{ display:none !important; }
         var ua = focusSub && focusSub !== u.sub ? 0.3 : 0.8;
         ctx.font = (fs * 0.72).toFixed(1) + 'px ' + fontSerif;
         ctx.fillStyle = rgb(pal.dark ? mix(pal.tint[c.ci], [255,250,240], 0.45) : pal.ink, ua);
-        ctx.fillText(u.sub, w.x, w.y + u.sigma * 1.6 * w.s + fs);
+        var uy = w.y + u.sigma * 1.6 * w.s + fs, uw = ctx.measureText(u.sub).width;
+        ctx.fillText(u.sub, w.x, uy);
+        u.lab = [w.x - uw / 2 - 10, uy - fs - 4, w.x + uw / 2 + 10, uy + 8];
       });
     });
 
@@ -887,6 +900,17 @@ body.cz-page .top-link{ display:none !important; }
     return best;
   }
 
+  /* 点在哪个标签名上：先看当前这一团的小标签，再看各团的团名 */
+  function hitLabel(px, py){
+    function inside(b){ return b && px >= b[0] && px <= b[2] && py >= b[1] && py <= b[3]; }
+    var found = null;
+    clusters.forEach(function(c){
+      c.subs.forEach(function(u){ if(!found && inside(u.lab)) found = { tag: c.tag, sub: u.sub }; });
+    });
+    clusters.forEach(function(c){ if(!found && inside(c.lab)) found = { tag: c.tag, sub: null }; });
+    return found;
+  }
+
   /* ── 指针：拖动旋转、双指缩放、点击选中 ── */
   var pointers = {}, drag = false, moved = 0, pinch0 = 0, zoom0 = 1;
   function local(e){
@@ -909,7 +933,12 @@ body.cz-page .top-link{ display:none !important; }
   canvas.addEventListener('pointermove', function(e){
     var pt = local(e);
     if(!pointers[e.pointerId]){
-      if(e.pointerType === 'mouse') showTip(hit(pt.x, pt.y));
+      if(e.pointerType === 'mouse'){
+        var hs = hit(pt.x, pt.y);
+        if(hs !== -1 && hitLabel(pt.x, pt.y) && Math.hypot(stars[hs].sx - pt.x, stars[hs].sy - pt.y) > stars[hs].sr + 2) hs = -1;
+        showTip(hs);
+        canvas.style.cursor = (hs !== -1 || hitLabel(pt.x, pt.y)) ? 'pointer' : '';
+      }
       return;
     }
     var prev = pointers[e.pointerId];
@@ -939,7 +968,17 @@ body.cz-page .top-link{ display:none !important; }
       canvas.classList.remove('dragging');
       if(moved <= 4 && e.type === 'pointerup'){
         var h = hit(pt.x, pt.y);
-        if(h !== -1) select(h); else deselect();
+        var lb = hitLabel(pt.x, pt.y);
+        /* 星星的点击范围比它本身大一圈，会盖到旁边的标签名：
+           点在名字上时，除非正好点中星星本体，否则算点名字 */
+        if(lb && h !== -1 && Math.hypot(stars[h].sx - pt.x, stars[h].sy - pt.y) > stars[h].sr + 2) h = -1;
+        if(h !== -1) select(h);
+        else if(lb && lb.sub) setSub(focusSub === lb.sub ? null : lb.sub);
+        else if(lb) setFocus(focusTag === lb.tag ? null : lb.tag);
+        /* 点空白处一层层往外退：先关面板，再退出小标签，再退出标签 */
+        else if(current !== -1) deselect();
+        else if(focusSub) setSub(null);
+        else if(focusTag) setFocus(null);
       }
     }
   }
@@ -959,7 +998,10 @@ body.cz-page .top-link{ display:none !important; }
   pPrev.addEventListener('click', function(){ select(current - 1); });
   pNext.addEventListener('click', function(){ select(current + 1); });
   document.addEventListener('keydown', function(e){
-    if(e.key === 'Escape' && current !== -1) deselect();
+    if(e.key !== 'Escape') return;
+    if(current !== -1) deselect();
+    else if(focusSub) setSub(null);
+    else if(focusTag) setFocus(null);
   });
   links.forEach(function(a, i){
     a.addEventListener('focus', function(){ if(current !== i) select(i); });
