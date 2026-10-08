@@ -415,9 +415,9 @@ body.cz-page .top-link{ display:none !important; }
     var rr = Math.sqrt(1 - yy * yy);
     var th = ci * 2.399963;
     c.ci = ci;
-    c.x = Math.cos(th) * rr * 0.62;
-    c.y = yy * 0.62 * 0.78;
-    c.z = Math.sin(th) * rr * 0.62;
+    c.x = Math.cos(th) * rr * 0.74;
+    c.y = yy * 0.74 * 0.78;
+    c.z = Math.sin(th) * rr * 0.74;
     c.sigma = 0.14 + 0.03 * Math.sqrt(c.count);
     /* 小标签在团里各占一小簇，簇心离团心一个 sigma 左右 */
     c.subs.forEach(function(u){
@@ -433,7 +433,7 @@ body.cz-page .top-link{ display:none !important; }
   stars.forEach(function(s){
     var c = byTag[s.tag], r = rng(hash(s.date + '|' + s.title));
     var u = s.sub ? c.bySub[s.sub] : null;
-    var o = u || c, sg = u ? u.sigma : c.sigma * 0.6;
+    var o = u || c, sg = u ? u.sigma : c.sigma * 0.8;
     s.c = c;
     s.x = o.x + gauss(r) * sg;
     s.y = o.y + gauss(r) * sg;
@@ -446,7 +446,7 @@ body.cz-page .top-link{ display:none !important; }
     var r = rng(hash('cloud|' + c.tag));
     var m = Math.min(1100, 520 + 50 * c.count);
     for(var i=0;i<m;i++){
-      var f = r() < 0.75 ? 1 : 1.9;             // 四分之一的粒子散得更开，边缘不会太齐
+      var f = r() < 0.8 ? 0.85 : 1.5;           // 五分之一的粒子散得更开，边缘不会太齐
       dust.push([c.x + gauss(r) * c.sigma * f, c.y + gauss(r) * c.sigma * f, c.z + gauss(r) * c.sigma * f,
                  1.1 + r() * 2.4, 0.35 + r() * 0.65, c.ci]);
     }
@@ -589,7 +589,7 @@ body.cz-page .top-link{ display:none !important; }
       var c = byTag[tag];
       if(current !== -1 && stars[current].tag !== tag){ current = -1; panel.classList.remove('open'); }
       goal.tx = c.x; goal.ty = c.y; goal.tz = c.z;
-      goal.zoom = mobile ? 1.5 : 1.65;
+      goal.zoom = mobile ? 2.1 : 2.4;
     } else if(current === -1){
       goal.tx = goal.ty = goal.tz = 0; goal.zoom = 1;
     }
@@ -605,7 +605,7 @@ body.cz-page .top-link{ display:none !important; }
     var c = byTag[focusTag], o = sub ? c.bySub[sub] : c;
     if(sub && current !== -1 && stars[current].sub !== sub){ current = -1; panel.classList.remove('open'); }
     goal.tx = o.x; goal.ty = o.y; goal.tz = o.z;
-    goal.zoom = sub ? (mobile ? 2.1 : 2.4) : (mobile ? 1.5 : 1.65);
+    goal.zoom = sub ? (mobile ? 2.6 : 3) : (mobile ? 2.1 : 2.4);
   }
 
   function buildSubs(){
@@ -762,8 +762,93 @@ body.cz-page .top-link{ display:none !important; }
       }
     });
 
+    /* 团名：直接写在每一团上方，进来第一眼就知道哪团是什么。
+       聚焦到某一团时，它的小标签也写在各自那一小簇上 */
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    clusters.forEach(function(c){
+      var q = project(c.x, c.y, c.z);
+      if(!q) return;
+      var off = c.sigma * 0.95 * q.s + 10;
+      var a = (focusTag && focusTag !== c.tag ? 0.22 : 0.88) * Math.max(0.5, Math.min(1, q.k));
+      var fs = Math.max(12, Math.min(19, 14 * Math.sqrt(q.k * cam.zoom))) * sizeK;
+      ctx.font = '600 ' + fs.toFixed(1) + 'px ' + fontSerif;
+      ctx.fillStyle = rgb(pal.dark ? mix(pal.tint[c.ci], [255,250,240], 0.45) : pal.ink, a);
+      ctx.fillText(c.tag, q.x, q.y - off);
+      ctx.font = (fs * 0.62).toFixed(1) + 'px ' + fontSans;
+      ctx.fillStyle = rgb(pal.dark ? pal.bg : pal.ink, a * 0.6);
+      ctx.fillText(c.count + ' 篇', q.x, q.y - off + fs * 0.95);
+      if(focusTag !== c.tag) return;
+      c.subs.forEach(function(u){
+        var w = project(u.x, u.y, u.z);
+        if(!w) return;
+        var ua = focusSub && focusSub !== u.sub ? 0.3 : 0.8;
+        ctx.font = (fs * 0.72).toFixed(1) + 'px ' + fontSerif;
+        ctx.fillStyle = rgb(pal.dark ? mix(pal.tint[c.ci], [255,250,240], 0.45) : pal.ink, ua);
+        ctx.fillText(u.sub, w.x, w.y + u.sigma * 1.6 * w.s + fs);
+      });
+    });
+
+    /* 聚焦到某个标签（或小标签）时，把这一团每篇的标题写在星星旁边。
+       依次试右、左、下、上四个位置，挑一个不压住别的标题和星星的 */
+    if(focusTag){
+      var tfs = 11.5 * sizeK, placed = [];
+      var mine = order.filter(function(st){
+        return st.tag === focusTag && (!focusSub || st.sub === focusSub);
+      });
+      mine.forEach(function(st){ placed.push([st.sx - st.sr - 2, st.sy - st.sr - 2, st.sx + st.sr + 2, st.sy + st.sr + 2]); });
+      var fq = project(byTag[focusTag].x, byTag[focusTag].y, byTag[focusTag].z);
+      if(fq){
+        var fo = byTag[focusTag].sigma * 0.95 * fq.s + 10;
+        placed.push([fq.x - 50, fq.y - fo - 22, fq.x + 50, fq.y - fo + 20]);
+      }
+      ctx.font = tfs.toFixed(1) + 'px ' + fontSerif;
+      ctx.textBaseline = 'middle';
+      mine.slice().sort(function(a, b){ return b.k - a.k; }).forEach(function(st){
+        var w = ctx.measureText(st.title).width, h = tfs * 1.35, g = st.sr + 6;
+        var tries = [];
+        [0, -1, 1, -2, 2, -3, 3].forEach(function(m){
+          tries.push([st.sx + g, st.sy - h / 2 + m * h * 0.8]);
+          tries.push([st.sx - g - w, st.sy - h / 2 + m * h * 0.8]);
+        });
+        tries.push([st.sx - w / 2, st.sy + g], [st.sx - w / 2, st.sy - g - h]);
+        var pick = null;
+        for(var ti=0; ti<tries.length && !pick; ti++){
+          var bx = tries[ti][0], by = tries[ti][1], ok = bx > 4 && bx + w < W - 4;
+          for(var pi=0; pi<placed.length && ok; pi++){
+            var b = placed[pi];
+            if(bx < b[2] && bx + w > b[0] && by < b[3] && by + h > b[1]) ok = false;
+          }
+          if(ok) pick = tries[ti];
+        }
+        if(!pick) pick = tries[0];
+        placed.push([pick[0], pick[1], pick[0] + w, pick[1] + h]);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = rgb(pal.dark ? [236,236,234] : pal.ink, st.i === current || st.i === hover ? 1 : 0.5);
+        ctx.fillText(st.title, pick[0], pick[1] + h / 2);
+      });
+    }
+
     if(hover !== -1) placeTip(stars[hover]);
   }
+
+  /* 空间里一个点 → 屏幕坐标，用的是当前这一帧的相机 */
+  function project(px, py, pz){
+    var cyw = Math.cos(cam.yaw), syw = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    var x = px - cam.tx, y = py - cam.ty, z = pz - cam.tz;
+    var x1 = x * cyw - z * syw, z1 = x * syw + z * cyw;
+    var y2 = y * cp - z1 * sp, zc = y * sp + z1 * cp + D;
+    if(zc < 0.2) return null;
+    var s = F * cam.zoom / zc;
+    return { x: cam.cx + x1 * s, y: cam.cy + y2 * s, s: s, k: D / zc };
+  }
+  var fontSerif = 'serif', fontSans = 'sans-serif';
+  function readFonts(){
+    var cs = getComputedStyle(document.documentElement);
+    fontSerif = cs.getPropertyValue('--font-serif').trim() || 'serif';
+    fontSans  = cs.getPropertyValue('--font-sans').trim()  || 'sans-serif';
+  }
+  readFonts();
 
   var paperRGB = null;
   function getPaper(){
