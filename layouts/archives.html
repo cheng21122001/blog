@@ -1,66 +1,62 @@
 {{- define "main" }}
 
-{{- /* 时间正序：最早的一篇是髓心，越往外越新，最外一圈是最新的一篇 */ -}}
-{{- /* 一页几棵小树：2024 年及以前合成一棵，之后每年一棵（分组在脚本里做） */ -}}
+{{- /* 时间正序：最早的一篇是最里面一圈，越往外越新 */ -}}
+{{- /* 平放的一片年轮，往下滑一圈圈浮起来，叠成一座塔：最早的在塔尖，最新的在塔底 */ -}}
 {{- $pages := (where site.RegularPages "Section" "posts").ByDate }}
-{{- $years := $pages.GroupByDate "2006" "asc" }}
 
 <div class="tr-root" id="trRoot">
 
   {{- /* 页名和顶部导航里的「时间」重复，画面上不再出现，只留给读屏和搜索引擎 */ -}}
   <h1 class="sr-only">{{ .Title }}</h1>
 
-  <div class="tr-stage" id="trStage">
-    {{- /* 每棵树画进一张位图，悬停高亮是盖在上面的一层蒙版：
-           几千个字只在打开、缩放停下、换主题时画一次，鼠标移动不会让树重绘。
-           树的两张画布由脚本按分组生成 */ -}}
-    <div class="tr-art" id="trArt" aria-hidden="true"></div>
-  </div>
+  {{- /* 很长的一段滚动距离，舞台粘在视窗里不动，滚动只用来推进动画 */ -}}
+  <div class="tr-scroll" id="trScroll">
+    <div class="tr-sticky">
+      <div class="tr-intro" id="trIntro" aria-hidden="true">
+        <b id="trCount"></b>
+        <span>向下滑动，一圈一圈拆开</span>
+      </div>
 
-  <div class="tr-tip" id="trTip">
-    <p class="tr-tip-date" id="trTipDate"></p>
-    <p class="tr-tip-title" id="trTipTitle"></p>
-  </div>
+      <div class="tr-info" id="trInfo" aria-live="polite">
+        <p class="tr-i-date" id="trIDate"></p>
+        <h2 class="tr-i-title" id="trITitle"></h2>
+        <p class="tr-i-ex" id="trIEx"></p>
+        {{- /* 链接先不写 href：主题会给所有 href="#" 的链接绑上页内滚动、拦掉点击，滑到文章时再由脚本填上 */ -}}
+        <a class="tr-i-go" id="trIGo">阅读全文</a>
+      </div>
 
-  <p class="tr-hint" id="trHint">悬停查看 · 点击详情 · 滚轮放大 · 双击复原</p>
+      <div class="tr-scene" id="trScene" aria-hidden="true">
+        <div class="tr-stack" id="trStack"></div>
+      </div>
+
+      <nav class="tr-rail" id="trRail" aria-label="按年份跳转"></nav>
+    </div>
+  </div>
 
   {{- /* 有 JS 时藏起来，只给读屏和键盘 Tab 用；没有 JS 时就是一份竖排清单 */ -}}
   <ol class="tr-list" id="trList">
-    {{- range $yi, $y := $years }}
-      {{- range $p := $y.Pages.ByDate }}
-        {{- /* .Plain 经过智能排版后带字面的 "&ldquo;" 文本，先还原成真引号 */ -}}
-        {{- $ex := $p.Plain | plainify | htmlUnescape | replaceRE `\s+` " " | strings.TrimSpace }}
-        {{- /* 纯图文章（拼贴诗）没有正文文字，退回 front matter 的 summary */ -}}
-        {{- if not $ex }}{{ $ex = $p.Params.summary | default $p.Title }}{{ end }}
-        {{- $t := $p.Title | plainify | htmlUnescape }}
-        {{- $len := strings.CountRunes $ex }}
+    {{- range $p := $pages }}
+      {{- /* .Plain 经过智能排版后带字面的 "&ldquo;" 文本，先还原成真引号 */ -}}
+      {{- $ex := $p.Plain | plainify | htmlUnescape | replaceRE `\s+` " " | strings.TrimSpace }}
+      {{- /* 纯图文章（拼贴诗）没有正文文字，退回 front matter 的 summary */ -}}
+      {{- if not $ex }}{{ $ex = $p.Params.summary | default $p.Title }}{{ end }}
+      {{- $t := $p.Title | plainify | htmlUnescape }}
+      {{- $len := strings.CountRunes $ex }}
     <li>
       <a class="tr-node" href="{{ $p.RelPermalink }}"
-         data-yi="{{ $yi }}"
-         data-year="{{ $y.Key }}"
+         data-year="{{ $p.Date.Format "2006" }}"
          data-len="{{ $len }}"
          data-date="{{ $p.Date.Format "2006.01.02" }}"
          data-title="{{ $t }}"
          data-excerpt="{{ if gt $len 160 }}{{ substr $ex 0 160 }}…{{ else }}{{ $ex }}{{ end }}"
-         data-ring="{{ substr $ex 0 600 }}">
+         data-ring="{{ substr $ex 0 300 }}">
         <span class="tr-l-date">{{ $p.Date.Format "2006.01.02" }}</span>
         <span class="tr-l-title">{{ $t }}</span>
       </a>
     </li>
-      {{- end }}
     {{- end }}
   </ol>
 </div>
-
-{{- /* 详情面板：宽屏从右侧滑入，手机从底部滑出 */ -}}
-<aside class="tr-panel" id="trPanel" aria-live="polite">
-  <button type="button" class="tr-p-x" id="trPX" aria-label="关闭">×</button>
-  <p class="tr-p-date" id="trPDate"></p>
-  <h2 class="tr-p-title" id="trPTitle"></h2>
-  <p class="tr-p-ex" id="trPEx"></p>
-  {{- /* 链接先不写 href：主题会给所有 href="#" 的链接绑上页内滚动、拦掉点击，选中文章时再由脚本填上 */ -}}
-  <a class="tr-p-go" id="trPGo">阅读全文</a>
-</aside>
 
 <style>
 /* ── 这一页专属：颜色全部取自站点令牌，跟随右上角的主题切换 ── */
@@ -68,80 +64,111 @@
   position:sticky; top:0; z-index:20;
   background:var(--theme);
 }
-body.tr-page{ overflow:hidden; background:var(--theme); }
+body.tr-page{ background:var(--theme); overflow-x:clip; }
 body.tr-page .footer,
 body.tr-page .top-link{ display:none !important; }
 
-.tr-root,
-.tr-panel{
+.tr-root{
+  --tr-face:var(--theme);
+  --tr-edge:color-mix(in srgb, var(--secondary) 45%, var(--theme));
+  --tr-dim:color-mix(in srgb, var(--secondary) 45%, var(--theme));
   font-family:var(--font-sans);
   font-weight:300;
 }
+:root[data-theme="dark"] .tr-root{
+  --tr-edge:#050505;
+  --tr-dim:color-mix(in srgb, var(--secondary) 55%, var(--theme));
+}
 
-/* ── 舞台：铺满导航栏以下的整个视窗 ── */
-.tr-root.ready{
-  position:fixed; left:0; right:0; bottom:0;
-  top:var(--tr-top,64px);
-  z-index:5;
-  background:var(--theme);
+/* ── 舞台：粘在导航栏下面，占满剩下的视窗 ── */
+.tr-root.ready .tr-scroll{ position:relative; }
+.tr-sticky{
+  position:sticky; top:var(--tr-top,64px);
+  /* 跳出主题的窄内容栏，铺满整个视窗宽度 */
+  width:100vw; margin-left:calc(50% - 50vw);
+  height:calc(100vh - var(--tr-top,64px));
+  height:calc(100svh - var(--tr-top,64px));
   overflow:hidden;
 }
-.tr-stage{
-  position:absolute; inset:0;
-  display:flex; align-items:center; justify-content:center;
-  transition:transform .45s cubic-bezier(.22,.61,.36,1);
-  will-change:transform;
-}
-.tr-root.shift .tr-stage{ transform:translateX(var(--tr-shift,0px)); }
-.tr-art{
-  position:absolute; inset:0;
-  touch-action:none;
-  cursor:default;
-  user-select:none; -webkit-user-select:none;
-  will-change:transform;
-}
-.tr-tree{ position:absolute; }
-.tr-art canvas{
-  position:absolute; inset:0;
-  width:100%; height:100%;
-  display:block;
-}
-.tr-art.zoomed{ cursor:grab; }
-.tr-art.dragging{ cursor:grabbing; }
-.tr-root:not(.ready) .tr-stage,
-.tr-root:not(.ready) .tr-tip,
-.tr-root:not(.ready) .tr-hint{ display:none; }
+.tr-root:not(.ready) .tr-scroll{ display:none; }
 
-/* 悬停小卡片 */
-.tr-tip{
-  position:absolute; left:0; top:0;
-  max-width:240px;
-  padding:.55rem .8rem .6rem;
-  background:var(--theme);
-  border:1px solid var(--border);
-  border-radius:2px;
-  pointer-events:none;
-  opacity:0;
-  transition:opacity .15s ease;
+.tr-scene{
+  position:absolute;
+  left:var(--tr-cx,50%); top:var(--tr-cy,60%);
+  width:var(--tr-d,500px); height:var(--tr-d,500px);
+  margin:calc(var(--tr-d,500px) / -2) 0 0 calc(var(--tr-d,500px) / -2);
+  perspective:1500px; perspective-origin:50% 20%;
 }
-.tr-tip.show{ opacity:1; }
-.tr-tip p{ margin:0; }
-.tr-tip-date{
-  font-size:.64rem; letter-spacing:.14em; color:var(--secondary);
+.tr-stack{ position:absolute; inset:0; transform-style:preserve-3d; }
+.tr-layer{ position:absolute; inset:0; transform-style:preserve-3d; will-change:transform; }
+.tr-layer svg{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+/* 每一层是一片薄木：底下垫一层深色当侧边 */
+.tr-layer .tr-edge{ transform:translateZ(-5px); }
+.tr-edge path{ fill:var(--tr-edge); }
+.tr-face > path{ fill:var(--tr-face); stroke:var(--tr-edge); stroke-width:.8; }
+.tr-layer text{ fill:var(--tr-dim); font-family:var(--font-serif); transition:fill .3s ease; }
+.tr-layer.on text{ fill:var(--primary); }
+/* 每年的第一圈描一道深线，像年与年之间的界 */
+.tr-layer.yr .tr-face > path{ stroke:var(--primary); stroke-width:1.6; }
+
+/* 开头的一句话 */
+.tr-intro{
+  position:absolute; left:50%; top:13%;
+  transform:translateX(-50%);
+  text-align:center; white-space:nowrap;
+  font-size:.8rem; letter-spacing:.4em; color:var(--secondary);
+  pointer-events:none;
+}
+.tr-intro b{
+  display:block; margin-bottom:.6rem;
+  font-family:var(--font-serif); font-size:1.4rem; font-weight:600;
+  letter-spacing:.3em; color:var(--primary);
+}
+
+/* 当前这一篇 */
+.tr-info{
+  position:absolute; left:clamp(24px,7vw,120px); top:50%;
+  transform:translateY(-50%);
+  width:min(300px,26vw);
+  z-index:2;
+  opacity:0; pointer-events:none;
+  transition:opacity .3s ease;
+}
+.tr-info.show{ opacity:1; pointer-events:auto; }
+.tr-i-date{
+  margin:0; font-size:.72rem; letter-spacing:.3em; color:var(--secondary);
   font-variant-numeric:tabular-nums;
 }
-.tr-tip-title{
-  margin-top:.3rem !important;
-  font-family:var(--font-serif); font-size:.9rem; font-weight:600;
-  line-height:1.5; color:var(--primary); letter-spacing:.03em;
+.tr-i-title{
+  margin:.5rem 0 .6rem; font-family:var(--font-serif);
+  font-size:clamp(1.25rem,2.4vw,1.75rem); font-weight:600; line-height:1.4;
+  color:var(--primary); letter-spacing:.05em;
+}
+.tr-i-ex{
+  margin:0; font-family:var(--font-serif);
+  font-size:.85rem; line-height:1.9; color:var(--secondary);
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.tr-i-go{
+  display:inline-block; margin-top:.8rem;
+  font-size:.8rem; letter-spacing:.1em; color:var(--primary);
+  text-decoration:none; border-bottom:1px solid var(--primary);
+  cursor:pointer;
 }
 
-.tr-hint{
-  position:absolute; left:0; right:0; bottom:14px;
-  margin:0; text-align:center;
-  font-size:.66rem; letter-spacing:.22em; color:var(--secondary);
-  opacity:.75; pointer-events:none;
+/* 右侧的年份刻度，点一下跳到那一年 */
+.tr-rail{
+  position:absolute; right:clamp(12px,4vw,56px); top:50%;
+  transform:translateY(-50%);
+  display:flex; flex-direction:column; gap:18px; text-align:right;
 }
+.tr-rail button{
+  font:inherit; font-size:.75rem; letter-spacing:.3em;
+  color:var(--secondary); background:none; border:0; padding:0;
+  cursor:pointer; transition:color .3s ease;
+}
+.tr-rail button.on,
+.tr-rail button:hover{ color:var(--primary); }
 
 /* 键盘和读屏用的清单：看不见，但 Tab 得到 */
 .tr-root.ready .tr-list{
@@ -149,79 +176,13 @@ body.tr-page .top-link{ display:none !important; }
   overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
 }
 
-/* ── 详情面板 ── */
-.tr-panel{
-  position:fixed; z-index:30;
-  right:max(3vw,18px);
-  top:calc(var(--tr-top,64px) + (100vh - var(--tr-top,64px)) / 2);
-  width:min(340px,34vw);
-  transform:translate(calc(100% + max(3vw,18px)),-50%);
-  padding:1.6rem 1.5rem;
-  background:var(--theme);
-  border:1px solid var(--border);
-  border-radius:2px;
-  opacity:0; pointer-events:none;
-  transition:transform .45s cubic-bezier(.22,.61,.36,1), opacity .3s ease;
-}
-.tr-panel.open{ transform:translate(0,-50%); opacity:1; pointer-events:auto; }
-.tr-p-x{
-  position:absolute; top:.8rem; right:.8rem;
-  width:28px; height:28px;
-  display:grid; place-items:center;
-  font:inherit; font-size:1rem; line-height:1; color:var(--secondary);
-  background:none; border:1px solid var(--border); border-radius:999px;
-  cursor:pointer;
-}
-.tr-p-x:hover{ color:var(--primary); border-color:var(--primary); }
-.tr-p-date{
-  margin:0; font-size:.72rem; letter-spacing:.14em; color:var(--secondary);
-  font-variant-numeric:tabular-nums;
-}
-.tr-p-title{
-  margin:.7rem 2rem 0 0; font-family:var(--font-serif);
-  font-size:1.15rem; font-weight:600; line-height:1.6;
-  color:var(--primary); letter-spacing:.04em;
-}
-.tr-p-ex{
-  margin:.9rem 0 0; font-family:var(--font-serif);
-  font-size:.85rem; line-height:1.95; color:var(--secondary);
-  display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden;
-}
-.tr-p-go{
-  display:inline-block; margin-top:1.4rem;
-  padding:.5rem 1.4rem;
-  font-size:.74rem; letter-spacing:.16em; color:var(--primary);
-  border:1px solid var(--primary); border-radius:999px;
-  text-decoration:none; cursor:pointer;
-  transition:background .2s ease, color .2s ease;
-}
-.tr-p-go:hover{ background:var(--primary); color:var(--theme); }
-.tr-root:not(.ready) ~ .tr-panel{ display:none; }
-
-@media (max-width:1080px){
-  .tr-panel{ width:min(300px,40vw); padding:1.3rem 1.2rem; }
-}
-
-/* ── 手机竖屏：面板从底部滑出，树往上让 ── */
-@media (max-width:768px){
-  .tr-root.shift .tr-stage{ transform:translateY(var(--tr-shift,0px)); }
-  .tr-hint{ font-size:.6rem; letter-spacing:.16em; }
-  .tr-panel{
-    right:0; left:0; top:auto; bottom:0;
-    width:auto; max-height:36vh; overflow-y:auto;
-    padding:.85rem 1.2rem calc(.9rem + env(safe-area-inset-bottom));
-    border:none; border-top:1px solid var(--border); border-radius:0;
-    transform:translateY(100%);
+/* ── 窄屏：文章信息放到上方居中，不要年份刻度 ── */
+@media (max-width:900px){
+  .tr-info{
+    left:50%; top:9%; transform:translateX(-50%);
+    width:calc(100vw - 32px); text-align:center;
   }
-  .tr-panel.open{ transform:translateY(0); }
-  .tr-p-date{ font-size:.66rem; }
-  .tr-p-title{ font-size:.98rem; margin-top:.4rem; }
-  .tr-p-ex{ -webkit-line-clamp:2; font-size:.75rem; line-height:1.7; margin-top:.5rem; }
-  .tr-p-go{ margin-top:.85rem; padding:.38rem 1.1rem; font-size:.7rem; }
-}
-
-@media (prefers-reduced-motion: reduce){
-  .tr-stage, .tr-panel, .tr-tip{ transition:none; }
+  .tr-rail{ display:none; }
 }
 
 /* ── 无 JS 降级：老老实实一条竖排清单 ── */
@@ -239,41 +200,21 @@ body.tr-page .top-link{ display:none !important; }
 
 <script>
 (function(){
-  var root  = document.getElementById('trRoot');
-  var panel = document.getElementById('trPanel');
-  if(!root || !panel || !document.createElement('canvas').getContext) return;
+  var root = document.getElementById('trRoot');
+  if(!root || !window.CSS || !CSS.supports('transform-style','preserve-3d')) return;
 
   var links = Array.prototype.slice.call(document.querySelectorAll('#trList .tr-node'));
   if(!links.length) return;
 
   function $(id){ return document.getElementById(id); }
-  var tip = $('trTip'), tipDate = $('trTipDate'), tipTitle = $('trTipTitle');
-  var pDate = $('trPDate'), pTitle = $('trPTitle'), pEx = $('trPEx'), pGo = $('trPGo'), pX = $('trPX');
+  var scroller = $('trScroll'), scene = $('trScene'), stack = $('trStack');
+  var info = $('trInfo'), intro = $('trIntro');
+  var iDate = $('trIDate'), iTitle = $('trITitle'), iEx = $('trIEx'), iGo = $('trIGo');
 
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var mobile = false;
 
-  function f1(v){ return v.toFixed(1); }
-
-  /* 固定种子的随机数：裂缝和树皮每次打开都一样 */
-  function hash(s){
-    var h = 2166136261;
-    for(var i=0;i<s.length;i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
-    return h >>> 0;
-  }
-  function rng(seed){
-    return function(){
-      seed = (seed + 0x6D2B79F5) | 0;
-      var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-
-  var posts = links.map(function(a, i){
+  var posts = links.map(function(a){
     return {
-      i: i, el: a,
-      yi: +a.getAttribute('data-yi'),
       year: a.getAttribute('data-year'),
       len: +a.getAttribute('data-len') || 1,
       date: a.getAttribute('data-date'),
@@ -285,559 +226,162 @@ body.tr-page .top-link{ display:none !important; }
   });
   var N = posts.length;
 
-  var art = $('trArt');
-  var HALF_PI = Math.PI / 2, TAU = Math.PI * 2;
-
-  /* ── 分树：2024 年及以前合成一棵，之后每年一棵；文章已按时间排好，树也就是从早到晚 ── */
-  var MERGE_UNTIL = 2024;
-  var trees = [], byKey = {};
-  posts.forEach(function(p){
-    var key = +p.year <= MERGE_UNTIL ? 'early' : p.year;
-    var t = byKey[key];
-    if(!t){ t = byKey[key] = { ti: trees.length, posts: [] }; trees.push(t); }
-    p.tree = t; p.k = t.posts.length; t.posts.push(p);
-  });
-
-  /* ── 几何：单位是树自己的数，所有树共用同一个「单位 → 像素」比例，
-     所以树皮、标题、髓心在每棵树上一样大，只有木质部的半径随篇幅不同 ── */
-  var PITH = 10, GAP = 1.2, SPAN = 383, BARK = 80;
-
-  /* 每圈的厚度随字数浮动（开平方后截上下限），加起来正好铺满这棵树的半径。
-     篇数少的树半径小，但不按比例缩到底（0.62 次方），不然三四圈的树只剩一个点 */
-  function weight(p){ return Math.max(9, Math.min(46, Math.sqrt(p.len))); }
-  var wmax = 0;
-  trees.forEach(function(t){
-    t.N = t.posts.length;
-    t.wsum = t.posts.reduce(function(s, p){ return s + weight(p); }, 0);
-    wmax = Math.max(wmax, t.wsum);
-  });
-  var VIEW_MAX = 0;
-  trees.forEach(function(t){
-    var span = Math.max(70, SPAN * Math.pow(t.wsum / wmax, 0.62));
-    t.WOOD = PITH + 3 + span;
-    t.BARK_IN = t.WOOD + 4;
-    t.OUT = t.BARK_IN + BARK;
-    t.VIEW = t.OUT * 2;
-    VIEW_MAX = Math.max(VIEW_MAX, t.VIEW);
-    var r = PITH + 3;
-    t.posts.forEach(function(p){
-      var th = span * weight(p) / t.wsum;
-      p.a = r; p.b = r + th; r += th;
-    });
-
-    t.el = document.createElement('div');
-    t.el.className = 'tr-tree';
-    t.base = document.createElement('canvas');
-    t.over = document.createElement('canvas');
-    t.el.appendChild(t.base); t.el.appendChild(t.over);
-    art.appendChild(t.el);
-    t.bctx = t.base.getContext('2d');
-    t.octx = t.over.getContext('2d');
-    t.CX = 0; t.x = t.y = t.d = 0;
-  });
-  if(!trees[0].bctx || !trees[0].octx) return;
-
-  /* ── 颜色和字体：从站点令牌里读，主题切换时重读 ── */
-  var col = {};
-  function readColors(){
-    var cs = getComputedStyle(document.documentElement);
-    col.ink   = cs.getPropertyValue('--primary').trim()   || '#17171a';
-    col.bg    = cs.getPropertyValue('--theme').trim()     || '#fcfcfa';
-    col.mute  = cs.getPropertyValue('--secondary').trim() || '#706d67';
-    col.serif = cs.getPropertyValue('--font-serif').trim() || 'serif';
-    col.sans  = cs.getPropertyValue('--font-sans').trim()  || 'sans-serif';
-  }
-
-  /* ── 年轮：每圈算好字号、半径、每个字的角度步长 ── */
-  posts.forEach(function(p){
-    var t = p.b - p.a - GAP;
-    var fs = Math.max(1.2, t * 0.8);
-    var rad = p.a + GAP / 2 + t * 0.14;              // 字从基线往外长
-    var C = 2 * Math.PI * rad;
-    var n = Math.max(3, Math.floor(C / (fs * 1.04)));
-    var txt = p.ring;
-    while(Array.from(txt).length < n) txt += '　' + p.ring;
-    p.glyphs = Array.from(txt).slice(0, n);
-    p.fs = fs;
-    p.rad = rad;
-    p.step = (C - fs * 0.6) / n / rad;                 // 排满一圈，末尾留一点缝
-    p.alpha = p.k % 2 ? 0.56 : 0.82;                   // 早材深、晚材浅
-  });
-
-  trees.forEach(function(t){
-    /* ── 树皮：一篇一组，每组几根长短不一的条，中间那根竖写标题 ── */
-    var slot = t.slot = TAU / t.N;
-    var br = rng(hash('bark' + (t.ti || '')));
-    t.bars = [];
-    t.posts.forEach(function(p, i){
-      var chars = Array.from(p.title).slice(0, 5);
-      var need = chars.length * 9 + 12;
-      var cnt = Math.max(2, Math.round(slot * t.BARK_IN / 24));
-      var mid = Math.floor(cnt / 2);
-      var gapA = 1.4 / t.BARK_IN;
-      for(var k=0;k<cnt;k++){
-        var a1 = i * slot + k * slot / cnt + gapA;
-        var a2 = i * slot + (k + 1) * slot / cnt - gapA;
-        var L = k === mid ? Math.max(need, 34) : 16 + br() * 26;
-        t.bars.push({ a1: a1, a2: a2, r2: t.BARK_IN + L, label: k === mid ? chars.join('') : null });
-      }
-      p.a1 = i * slot; p.a2 = (i + 1) * slot;
-    });
-
-    /* ── 裂缝：从外缘往里的窄楔形，边缘带一点锯齿；右侧一道直通髓心的细缝。
-       圈数少的树裂缝也少 ── */
-    var cr = rng(hash('cracks' + (t.ti || '')));
-    var all = [[-0.72, 0.48], [0.62, 0.72], [2.62, 0.30], [3.72, 0.62], [5.02, 0.78]];
-    var use = t.N >= 12 ? all : t.N >= 6 ? [all[1], all[3], all[4]] : [all[1], all[3]];
-    t.cracks = [];
-    use.forEach(function(c){
-      var ang = c[0] + (cr() - 0.5) * 0.25;
-      var rEnd = t.WOOD * c[1];
-      var w0 = 11 + cr() * 8;
-      var steps = 16, side1 = [], side2 = [];
-      for(var s=0;s<=steps;s++){
-        var rr = t.OUT - (t.OUT - rEnd) * s / steps;
-        var half = w0 * Math.pow(1 - s / steps, 0.9) + 0.4;
-        var jit = (cr() - 0.5) * 3;
-        var nx = Math.cos(ang), ny = Math.sin(ang);    // 垂直于半径的方向
-        var cx = rr * Math.sin(ang) + jit * nx * 0.4, cy = -rr * Math.cos(ang) + jit * ny * 0.4;
-        side1.push([cx + nx * half, cy + ny * half]);
-        side2.unshift([cx - nx * half, cy - ny * half]);
-      }
-      t.cracks.push(side1.concat(side2));
-    });
-    t.cracks.push([[PITH + 6, -2.5], [t.OUT, -8], [t.OUT, 8], [PITH + 6, 2.5]]);
-
-    /* 年份写在右侧细缝里；两个年份挨得太近时，后一个错开写到缝的下沿 */
-    t.years = [];
-    var lastX = -99, low = false;
-    t.posts.forEach(function(p, i){
-      if(i > 0 && t.posts[i-1].yi === p.yi) return;
-      low = p.a - lastX < 26 ? !low : false;
-      lastX = p.a;
-      t.years.push({ x: p.a + 1, y: low ? 13 : 2.8, text: p.year });
-    });
-  });
-
-  /* ── 绘制：每棵树画进自己的位图，只在打开、缩放停下、换主题时重画 ── */
-  var S = 1;                                           // 树单位 → 位图像素，所有树共用
-  function drawPith(t){
-    var bctx = t.bctx;
-    bctx.setTransform(1, 0, 0, 1, 0, 0);
-    bctx.globalAlpha = 1;
-    bctx.fillStyle = col.ink;
-    bctx.beginPath();
-    bctx.arc(t.CX, t.CX, PITH * 0.55 * S, 0, TAU);
-    bctx.fill();
-  }
-  /* 字形图集：旋转着直接 fillText 几千个汉字，浏览器上屏时要逐字描轮廓，
-     整棵树光栅化要两三秒（2026-09 实测）。改成每次重画前把用到的「字 + 字号」
-     正着画进一张图集，年轮上只做旋转贴图，整棵树几十毫秒。几棵树共用一张 */
-  var atlas = document.createElement('canvas'), actx = atlas.getContext('2d');
-  var cells = {};
-  function buildAtlas(){
-    cells = {};
-    var list = [];
-    posts.forEach(function(p){
-      p.px = Math.max(1.5, Math.round(p.fs * S * 2) / 2);
-      p.glyphs.forEach(function(ch){
-        if(ch === '　' || ch === ' ') return;
-        var k = ch + '|' + p.px;
-        if(cells[k]) return;
-        var w = Math.ceil(p.px * 1.25) + 2;
-        cells[k] = { ch: ch, px: p.px, w: w, base: Math.round(w * 0.8) };
-        list.push(cells[k]);
-      });
-    });
-    /* 按格子大小排好，一行一行往下铺 */
-    list.sort(function(a, b){ return b.w - a.w || a.px - b.px; });
-    var AW = 4096, x = 0, y = 0, rowH = 0;
-    list.forEach(function(o){
-      if(x + o.w > AW){ x = 0; y += rowH; rowH = 0; }
-      o.x = x; o.y = y; x += o.w; rowH = Math.max(rowH, o.w);
-    });
-    atlas.width = AW; atlas.height = Math.max(1, y + rowH);
-    actx.fillStyle = col.ink;
-    actx.textAlign = 'center';
-    actx.textBaseline = 'alphabetic';
-    var lastPx = -1;
-    list.forEach(function(o){
-      if(o.px !== lastPx){ actx.font = o.px + 'px ' + col.serif; lastPx = o.px; }
-      actx.fillText(o.ch, o.x + o.w / 2, o.y + o.base);
-    });
-  }
-  function drawRing(p){
-    var bctx = p.tree.bctx, CX = p.tree.CX;
-    bctx.globalAlpha = p.alpha;
-    var r = p.rad * S;
-    for(var j=0;j<p.glyphs.length;j++){
-      var o = cells[p.glyphs[j] + '|' + p.px];
-      if(!o) continue;
-      var a = (j + 0.5) * p.step, c = Math.cos(a), s = Math.sin(a);
-      bctx.setTransform(c, s, -s, c, CX + r * s, CX - r * c);
-      bctx.drawImage(atlas, o.x, o.y, o.w, o.w, -o.w / 2, -o.base, o.w, o.w);
+  /* ── 中文数字：年份逐字，篇数按读法 ── */
+  var DIG = '〇一二三四五六七八九';
+  function cnDigits(s){ return s.replace(/\d/g, function(d){ return DIG[+d]; }); }
+  function cnNum(n){
+    if(n < 10) return DIG[n];
+    if(n < 100){
+      var t = Math.floor(n / 10), o = n % 10;
+      return (t > 1 ? DIG[t] : '') + '十' + (o ? DIG[o] : '');
     }
-    bctx.setTransform(1, 0, 0, 1, 0, 0);
+    return String(n);
   }
-  function drawBark(t){
-    var bctx = t.bctx, CX = t.CX, BARK_IN = t.BARK_IN;
-    bctx.setTransform(1, 0, 0, 1, 0, 0);
-    bctx.globalAlpha = 0.86;
-    bctx.fillStyle = col.ink;
-    t.bars.forEach(function(b){
-      bctx.beginPath();
-      bctx.arc(CX, CX, b.r2 * S, b.a1 - HALF_PI, b.a2 - HALF_PI);
-      bctx.arc(CX, CX, BARK_IN * S, b.a2 - HALF_PI, b.a1 - HALF_PI, true);
-      bctx.closePath();
-      bctx.fill();
-    });
-    /* 标题沿半径方向写：右半边从里往外读，左半边从外往里读，字都是正的 */
-    bctx.globalAlpha = 1;
-    bctx.fillStyle = col.bg;
-    bctx.font = (8.5 * S).toFixed(2) + 'px ' + col.serif;
-    bctx.textBaseline = 'alphabetic';
-    t.bars.forEach(function(b){
-      if(!b.label) return;
-      var am = (b.a1 + b.a2) / 2;
-      var left = am > Math.PI;
-      var th = left ? am + HALF_PI : am - HALF_PI, c = Math.cos(th), s = Math.sin(th);
-      bctx.setTransform(c, s, -s, c, CX, CX);
-      bctx.textAlign = left ? 'right' : 'left';
-      bctx.fillText(b.label, (left ? -(BARK_IN + 6) : BARK_IN + 6) * S, 3 * S);
-    });
-    bctx.setTransform(1, 0, 0, 1, 0, 0);
-  }
-  function drawCracks(t){
-    var bctx = t.bctx, CX = t.CX;
-    bctx.setTransform(1, 0, 0, 1, 0, 0);
-    bctx.globalAlpha = 1;
-    bctx.fillStyle = col.bg;
-    t.cracks.forEach(function(pts){
-      bctx.beginPath();
-      pts.forEach(function(q, k){
-        if(k) bctx.lineTo(CX + q[0] * S, CX + q[1] * S);
-        else  bctx.moveTo(CX + q[0] * S, CX + q[1] * S);
-      });
-      bctx.closePath();
-      bctx.fill();
-    });
-  }
-  function drawYears(t){
-    var bctx = t.bctx, CX = t.CX;
-    bctx.setTransform(1, 0, 0, 1, 0, 0);
-    bctx.globalAlpha = 1;
-    bctx.fillStyle = col.mute;
-    bctx.font = (8 * S).toFixed(2) + 'px ' + col.sans;
-    bctx.textAlign = 'left';
-    bctx.textBaseline = 'alphabetic';
-    t.years.forEach(function(y){ bctx.fillText(y.text, CX + y.x * S, CX + y.y * S); });
-  }
-  function finishTree(t){ drawBark(t); drawCracks(t); drawYears(t); }
+  $('trCount').textContent = cnNum(N) + '圈';
 
-  /* 位图比例 = 显示比例 × 像素比 × 缩放倍数；最大那棵的边长封顶，避免手机上位图过大 */
-  var K = 0.5;                                         // 树单位 → 屏幕 CSS 像素，由 layout() 定
-  var rendered = 0, grown = N, growT0 = 0;
-  function wantS(){
-    var cap = mobile ? 2800 : 4000;                  // Safari 的画布面积上限约 4096²，超了会整张变空白
-    return Math.min(cap / VIEW_MAX, K * dpr * Math.max(1, zs));
+  /* ── 年轮的形状：不是正圆，几种频率的轻微起伏叠在一起，每次打开都一样 ── */
+  var NS = 'http://www.w3.org/2000/svg';
+  var R = 500, R_CORE = R * 0.08, R_OUT = R * 0.97;
+  var PH = [1.3, 4.1, 2.2], AMP = 0.012;
+  function svgEl(name, attrs){
+    var e = document.createElementNS(NS, name);
+    for(var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
   }
-  function prepare(){
-    S = rendered = wantS();
-    trees.forEach(function(t){
-      t.base.width = t.base.height = Math.max(1, Math.round(t.VIEW * S));
-      t.CX = t.base.width / 2;
-    });
-    buildAtlas();
-  }
-  function renderAll(){
-    prepare();
-    trees.forEach(drawPith);
-    posts.forEach(drawRing);
-    trees.forEach(finishTree);
-    grown = N;
-  }
-
-  /* 打开时从最早那棵的髓心往外一圈圈长，一棵长完接着长下一棵：
-     每帧只补画新长出的几圈，画完就停 */
-  function grow(){
-    prepare();
-    trees.forEach(drawPith);
-    grown = 0;
-    growT0 = performance.now();
-    requestAnimationFrame(growFrame);
-  }
-  function growFrame(now){
-    if(grown >= N) return;                             // 期间被整个重画过
-    var target = Math.min(N, Math.floor((now - growT0) / 1800 * N) + 1);
-    while(grown < target){
-      var p = posts[grown];
-      drawRing(p); grown++;
-      if(p.k === p.tree.N - 1) finishTree(p.tree);
+  function wobble(r){
+    var pts = [], a = AMP * (r / R_OUT);
+    for(var i = 0; i <= 120; i++){
+      var t = i / 120 * Math.PI * 2;
+      var k = 1 + a * (Math.sin(3*t + PH[0]) * .6 + Math.sin(5*t + PH[1]) * .3 + Math.sin(9*t + PH[2]) * .15);
+      pts.push((R + Math.cos(t) * r * k).toFixed(1) + ' ' + (R + Math.sin(t) * r * k).toFixed(1));
     }
-    if(grown < N){
-      if(posts[grown].k > 0) drawCracks(posts[grown].tree);
-      requestAnimationFrame(growFrame);
-    }
+    return pts;
+  }
+  function closed(pts){ return 'M' + pts.join('L') + 'Z'; }
+  function annulus(rOut, rIn){
+    return closed(wobble(rOut)) + ' ' + closed(wobble(rIn).reverse());
   }
 
-  /* ── 高亮：在那一棵上盖一层半透明底色，只把选中的那一圈和那组树皮挖出来 ── */
-  function drawOverlay(){
-    var k = hover !== -1 ? hover : current;
-    trees.forEach(function(t){
-      t.octx.setTransform(1, 0, 0, 1, 0, 0);
-      t.octx.clearRect(0, 0, t.over.width, t.over.height);
-    });
-    if(k === -1) return;
-    var p = posts[k], t = p.tree, octx = t.octx;
-    var s = t.over.width / t.VIEW, c = t.over.width / 2;
-    octx.globalCompositeOperation = 'source-over';
-    octx.globalAlpha = 0.8;
-    octx.fillStyle = col.bg;
-    octx.beginPath();
-    octx.arc(c, c, (t.BARK_IN + 100) * s, 0, TAU);
-    octx.fill();
-    octx.globalAlpha = 1;
-    octx.globalCompositeOperation = 'destination-out';
-    octx.beginPath();
-    octx.arc(c, c, p.b * s, 0, TAU);
-    octx.arc(c, c, (p.k === 0 ? 0 : p.a) * s, 0, TAU, true);
-    octx.fill();
-    octx.beginPath();
-    octx.arc(c, c, (t.BARK_IN + 95) * s, p.a1 - HALF_PI, p.a2 - HALF_PI);
-    octx.arc(c, c, (t.BARK_IN - 1) * s, p.a2 - HALF_PI, p.a1 - HALF_PI, true);
-    octx.closePath();
-    octx.fill();
-    octx.globalCompositeOperation = 'source-over';
-  }
+  /* 篇幅越长这一圈越宽 */
+  var widths = posts.map(function(p){ return 0.6 + Math.sqrt(p.len) / 45; });
+  var total = widths.reduce(function(a, b){ return a + b; }, 0);
+  var r = R_CORE;
+  posts.forEach(function(p, i){
+    p.r1 = r;
+    p.r2 = r + (R_OUT - R_CORE) * widths[i] / total;
+    r = p.r2;
+  });
 
-  /* ── 视图：缩放与平移改外层的 CSS 变换（几棵树一起动），手势进行中直接缩放位图，
-     停下后按新倍数重画一遍清晰的 ── */
-  var zs = 1, ztx = 0, zty = 0, settle = null;
-  var dpr = Math.min(window.devicePixelRatio || 1, 2);
-  function applyView(){
-    art.style.transform = (zs > 1.001)
-      ? 'translate(' + f1(ztx) + 'px,' + f1(zty) + 'px) scale(' + zs.toFixed(3) + ')'
-      : '';
-    art.classList.toggle('zoomed', zs > 1.01);
-    clearTimeout(settle);
-    settle = setTimeout(function(){
-      var s = wantS();
-      if(Math.abs(s - rendered) / rendered > 0.12) renderAll();
-    }, 220);
-  }
-  function clampView(){
-    if(zs <= 1.001){ zs = 1; ztx = zty = 0; return; }
-    var limX = root.clientWidth * (zs - 1) / 2 + 40, limY = root.clientHeight * (zs - 1) / 2 + 40;
-    ztx = Math.max(-limX, Math.min(limX, ztx));
-    zty = Math.max(-limY, Math.min(limY, zty));
-  }
-  function zoomAt(cx, cy, factor){
-    var rb = art.getBoundingClientRect();
-    var ox = rb.left + rb.width / 2 - ztx, oy = rb.top + rb.height / 2 - zty;   // 未变换时的中心
-    var lx = (cx - ox - ztx) / zs, ly = (cy - oy - zty) / zs;
-    var ns = Math.max(1, Math.min(6, zs * factor));
-    ztx = cx - ox - lx * ns;
-    zty = cy - oy - ly * ns;
-    zs = ns;
-    clampView();
-    applyView();
-  }
-  /* 屏幕坐标换成某棵树的坐标；getBoundingClientRect 已经算进了缩放和平移 */
-  function treePoint(t, cx, cy){
-    var rb = t.el.getBoundingClientRect();
-    var k = t.VIEW / rb.width;
-    return { x: (cx - rb.left - rb.width / 2) * k, y: (cy - rb.top - rb.height / 2) * k };
-  }
+  /* ── 每篇一层：底下一片深色当侧边，上面一片当木面，正文沿着这一圈走 ── */
+  var layers = posts.map(function(p, i){
+    var L = document.createElement('div');
+    L.className = 'tr-layer';
+    if(i === 0 || posts[i-1].year !== p.year) L.classList.add('yr');
+    var d = i === 0 ? closed(wobble(p.r2)) : annulus(p.r2, p.r1);
+    var box = '0 0 ' + R*2 + ' ' + R*2;
 
-  /* ── 排布：横屏一排，从早到晚；竖屏时最新那棵单独占下面一行。
-     所有树共用一个比例，正好放进舞台 ── */
-  function sum(a){ return a.reduce(function(s, v){ return s + v; }, 0); }
-  function layout(){
-    var W = root.clientWidth, H = root.clientHeight, availH = H - 44, n = trees.length;
-    var rows = (n > 1 && W < availH * 1.05) ? [trees.slice(0, n - 1), [trees[n - 1]]] : [trees];
-    var rowW = rows.map(function(r){ return sum(r.map(function(t){ return t.VIEW; })); });
-    var rowH = rows.map(function(r){ return Math.max.apply(null, r.map(function(t){ return t.VIEW; })); });
-    K = Math.max(0.12, Math.min((W - 16) / Math.max.apply(null, rowW), (availH - 8) / sum(rowH)));
-    var y = (availH - sum(rowH) * K) / 2 + 4;
-    rows.forEach(function(r, ri){
-      var x = (W - rowW[ri] * K) / 2;
-      r.forEach(function(t){
-        t.d = t.VIEW * K;
-        t.x = x; t.y = y + (rowH[ri] * K - t.d) / 2;
-        x += t.d;
-        t.el.style.left = f1(t.x) + 'px';
-        t.el.style.top = f1(t.y) + 'px';
-        t.el.style.width = t.el.style.height = f1(t.d) + 'px';
-        t.over.width = t.over.height = Math.max(1, Math.round(t.d * dpr));
-      });
-      y += rowH[ri] * K;
-    });
-  }
+    var edge = svgEl('svg', { viewBox:box, 'class':'tr-edge' });
+    edge.appendChild(svgEl('path', { d:d, 'fill-rule':'evenodd' }));
 
-  var lastK = 0;
+    var face = svgEl('svg', { viewBox:box, 'class':'tr-face' });
+    face.appendChild(svgEl('path', { d:d, 'fill-rule':'evenodd' }));
+    var mid = (p.r1 + p.r2) / 2, band = p.r2 - p.r1;
+    var fs = Math.max(4, Math.min(band * .62, 30));
+    var id = 'trRing' + i, defs = svgEl('defs', {});
+    /* 基线放在中线偏外一点，字才落在这一圈正中 */
+    defs.appendChild(svgEl('path', { id:id, d:closed(wobble(mid - fs * .32)) }));
+    face.appendChild(defs);
+    var need = Math.ceil(2 * Math.PI * mid / fs) + 2;
+    var s = p.ring.replace(/\s+/g, ''), chars = Array.from(s);
+    while(chars.length < need) chars = chars.concat(['　'], Array.from(s));
+    var text = svgEl('text', { 'font-size':fs.toFixed(1) });
+    var tp = svgEl('textPath', { href:'#' + id });
+    tp.textContent = chars.slice(0, need).join('');
+    text.appendChild(tp);
+    face.appendChild(text);
+
+    L.appendChild(edge);
+    L.appendChild(face);
+    stack.appendChild(L);
+    return L;
+  });
+
+  /* ── 年份刻度 ── */
+  var rail = $('trRail'), years = [], yearBtns = [];
+  posts.forEach(function(p, i){
+    if(years.indexOf(p.year) !== -1) return;
+    years.push(p.year);
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = cnDigits(p.year);
+    b.addEventListener('click', function(){ jumpTo(i); });
+    rail.appendChild(b);
+    yearBtns.push(b);
+  });
+
+  /* ── 滚动距离：开头一段用来拆开，之后每篇一段 ── */
+  var HEAD = 700, STEP = 110, D = 500, top = 64;
   function resize(){
-    mobile = window.matchMedia('(max-width:768px)').matches;
     var header = document.querySelector('.header');
-    var top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+    top = header ? Math.round(header.getBoundingClientRect().height) : 0;
     document.documentElement.style.setProperty('--tr-top', top + 'px');
-    layout();
-    $('trHint').textContent = mobile ? '点按查看 · 双指放大 · 双击复原'
-                                     : '悬停查看 · 点击详情 · 滚轮放大 · 双击复原';
-    setShift();
-    drawOverlay();
-    if(lastK && K !== lastK) renderAll();
-    lastK = K;
+    var W = document.documentElement.clientWidth, wide = W > 900;
+    var H = window.innerHeight - top;
+    D = Math.min(W * (wide ? .5 : .86), H * (wide ? 1.05 : .66), 620);
+    scene.style.setProperty('--tr-d', D + 'px');
+    scene.style.setProperty('--tr-cx', wide ? '58%' : '50%');
+    scene.style.setProperty('--tr-cy', wide ? '60%' : '64%');
+    scroller.style.height = (HEAD + (N - 1) * STEP + H) + 'px';
+    lastY = null;
   }
 
-  /* 面板打开时，选中的那棵树让到面板左边（手机上让到面板上方） */
-  function setShift(){
-    var open = panel.classList.contains('open') && current !== -1;
-    root.classList.toggle('shift', open);
-    if(!open) return;
-    var W = root.clientWidth, H = root.clientHeight;
-    var t = posts[current].tree, shift;
-    if(mobile){
-      var free = H - panel.offsetHeight;
-      shift = Math.max(Math.min(0, free - 8 - (t.y + t.d)), Math.min(0, 4 - t.y));
-    } else {
-      /* 面板还在滑入途中，位置按它停下后的样子算 */
-      var left = W - Math.max(window.innerWidth * 0.03, 18) - panel.offsetWidth;
-      shift = Math.max(Math.min(0, left - 12 - (t.x + t.d)), Math.min(0, 8 - t.x));
-    }
-    root.style.setProperty('--tr-shift', f1(shift) + 'px');
+  function jumpTo(i){
+    var y = scroller.getBoundingClientRect().top + window.scrollY - top + HEAD + i * STEP;
+    window.scrollTo({ top:y, behavior: reduced ? 'auto' : 'smooth' });
   }
+  /* 键盘 Tab 到藏着的清单时，把塔滑到那一篇 */
+  links.forEach(function(a, i){ a.addEventListener('focus', function(){ jumpTo(i); }); });
 
-  /* ── 选中 / 悬停 ── */
-  var current = -1, hover = -1;
-  function mark(){ drawOverlay(); }
+  var current = -1, lastY = null, t0 = performance.now();
+  function frame(now){
+    var y = top - scroller.getBoundingClientRect().top;
+    var e = Math.max(0, Math.min(1, y / HEAD));            /* 0 = 合在一起，1 = 完全拆开 */
+    var ease = e * e * (3 - 2 * e);
 
-  function select(i){
-    if(i < 0 || i >= N) return;
-    current = i;
-    var p = posts[i];
-    pDate.textContent = p.date;
-    pTitle.textContent = p.title;
-    pEx.textContent = p.excerpt;
-    pGo.setAttribute('href', p.href);
-    panel.classList.add('open');
-    setShift();
-    mark();
-  }
-  function deselect(){
-    current = -1;
-    panel.classList.remove('open');
-    setShift();
-    mark();
-  }
+    /* 整座塔很慢地转；减少动态时不转 */
+    var spin = reduced ? 0 : (now - t0) / 1000 * 4;
+    stack.style.transform = 'rotateX(' + (62 - 6 * ease).toFixed(2) + 'deg) rotateZ(' + spin.toFixed(2) + 'deg)';
 
-  function hitAt(cx, cy){
-    for(var ti=0;ti<trees.length;ti++){
-      var t = trees[ti];
-      var p = treePoint(t, cx, cy);
-      var d = Math.hypot(p.x, p.y);
-      if(d > t.OUT) continue;
-      if(d > t.BARK_IN - 2){
-        var ang = Math.atan2(p.x, -p.y);
-        if(ang < 0) ang += 2 * Math.PI;
-        return t.posts[Math.min(t.N - 1, Math.floor(ang / t.slot))].i;
+    if(y !== lastY){
+      lastY = y;
+      var f = Math.max(0, Math.min(N - 1, (y - HEAD) / STEP)); /* 滑到第几圈，可以是小数 */
+      var gap = D * .013 * ease;
+      layers.forEach(function(L, i){
+        /* 最早的一圈在塔尖；正看着的那圈再往上浮一点 */
+        var near = Math.max(0, 1 - Math.abs(i - f) / 1.2) * ease;
+        var z = (N - 1 - i) * gap + near * D * .12;
+        L.style.transform = 'translateZ(' + z.toFixed(1) + 'px)';
+        L.style.opacity = ease < .05 ? 1 : (.5 + .5 * Math.max(near, 1 - ease)).toFixed(2);
+      });
+
+      var k = ease > .6 ? Math.round(f) : -1;
+      if(k !== current){
+        current = k;
+        layers.forEach(function(L, i){ L.classList.toggle('on', i === k); });
+        info.classList.toggle('show', k !== -1);
+        if(k !== -1){
+          var p = posts[k];
+          iDate.textContent = p.date;
+          iTitle.textContent = p.title;
+          iEx.textContent = p.excerpt;
+          iGo.setAttribute('href', p.href);
+        }
+        yearBtns.forEach(function(b, j){ b.classList.toggle('on', k !== -1 && years[j] === posts[k].year); });
       }
-      if(d < PITH) return t.posts[0].i;
-      var lo = 0, hi = t.N - 1;
-      while(lo < hi){
-        var m = (lo + hi) >> 1;
-        if(t.posts[m].b < d) lo = m + 1; else hi = m;
-      }
-      return t.posts[lo].i;
+      intro.style.opacity = Math.max(0, 1 - ease * 2).toFixed(2);
     }
-    return -1;
+    requestAnimationFrame(frame);
   }
-
-  function showTip(i, cx, cy){
-    if(i !== hover){ hover = i; mark(); }
-    if(i === -1){ tip.classList.remove('show'); return; }
-    var p = posts[i];
-    tipDate.textContent = p.date;
-    tipTitle.textContent = p.title;
-    tip.classList.add('show');
-    var rb = root.getBoundingClientRect();
-    var x = cx - rb.left + 18, y = cy - rb.top + 14;
-    var w = tip.offsetWidth, h = tip.offsetHeight;
-    if(x + w > rb.width - 12) x = cx - rb.left - w - 18;
-    if(y + h > rb.height - 12) y = cy - rb.top - h - 14;
-    tip.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
-  }
-
-  /* ── 指针：悬停、点击、拖动平移、双指缩放 ── */
-  var pointers = {}, moved = 0, pinch0 = 0, zoom0 = 1, dragging = false;
-  function list(){ return Object.keys(pointers).map(function(k){ return pointers[k]; }); }
-
-  art.addEventListener('pointerdown', function(e){
-    try{ art.setPointerCapture(e.pointerId); }catch(err){}
-    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
-    var ps = list();
-    if(ps.length === 1){ moved = 0; dragging = true; }
-    if(ps.length === 2){
-      pinch0 = Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y) || 1;
-      zoom0 = zs;
-      moved = 99;
-    }
-  });
-  art.addEventListener('pointermove', function(e){
-    var prev = pointers[e.pointerId];
-    if(!prev){
-      if(e.pointerType === 'mouse') showTip(hitAt(e.clientX, e.clientY), e.clientX, e.clientY);
-      return;
-    }
-    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
-    var ps = list();
-    if(ps.length >= 2){
-      var dist = Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y);
-      zoomAt((ps[0].x + ps[1].x) / 2, (ps[0].y + ps[1].y) / 2, (zoom0 * dist / pinch0) / zs);
-      return;
-    }
-    var dx = e.clientX - prev.x, dy = e.clientY - prev.y;
-    moved += Math.abs(dx) + Math.abs(dy);
-    if(moved > 5 && zs > 1){
-      art.classList.add('dragging');
-      ztx += dx; zty += dy;
-      clampView();
-      applyView();
-      if(hover !== -1) showTip(-1);
-    }
-  });
-  function end(e){
-    if(!pointers[e.pointerId]) return;
-    delete pointers[e.pointerId];
-    if(list().length) return;
-    dragging = false;
-    art.classList.remove('dragging');
-    if(moved <= 5 && e.type === 'pointerup'){
-      var h = hitAt(e.clientX, e.clientY);
-      if(h !== -1) select(h); else deselect();
-      if(e.pointerType !== 'mouse') showTip(-1);
-    }
-  }
-  art.addEventListener('pointerup', end);
-  art.addEventListener('pointercancel', end);
-  art.addEventListener('pointerleave', function(e){ if(e.pointerType === 'mouse' && !dragging) showTip(-1); });
-
-  art.addEventListener('wheel', function(e){
-    e.preventDefault();
-    var dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
-    zoomAt(e.clientX, e.clientY, Math.exp(-dy * 0.0018));
-  }, { passive:false });
-  art.addEventListener('dblclick', function(){
-    zs = 1; ztx = zty = 0;
-    applyView();
-  });
-
-  pX.addEventListener('click', deselect);
-  document.addEventListener('keydown', function(e){
-    if(e.key === 'Escape' && current !== -1) deselect();
-  });
-  links.forEach(function(a, i){
-    a.addEventListener('focus', function(){ if(current !== i) select(i); });
-  });
 
   var rt = null;
   window.addEventListener('resize', function(){
@@ -845,19 +389,10 @@ body.tr-page .top-link{ display:none !important; }
     rt = setTimeout(resize, 100);
   });
 
-  /* 右上角切换主题时换色，全部重画 */
-  new MutationObserver(function(){ readColors(); renderAll(); drawOverlay(); })
-    .observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
-  /* 字体晚到时，先画的字可能是后备字体，到了再整棵重画一遍 */
-  if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){
-    if(grown >= N) renderAll();
-  });
-
   document.body.classList.add('tr-page');
   root.classList.add('ready');
-  readColors();
   resize();
-  if(reduced) renderAll(); else grow();
+  requestAnimationFrame(frame);
 })();
 </script>
 
