@@ -61,7 +61,7 @@ outputs:
 
 params:
   env: production # to enable google analytics, opengraph, twitter-cards and schema.
-  description: "Theme PaperMod - https://github.com/adityatelange/hugo-PaperMod"
+  description: "在我说出一切、一切前，你不该懂得我。"
   author: "普原"
   DateFormat: "2006年1月2日"
 
@@ -80,7 +80,6 @@ params:
   ShowPageNums: true
   ShowToc: true
   # comments: false
-  images: ["images/papermod-cover.png"]
 
   profileMode:
     enabled: true
