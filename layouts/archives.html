@@ -1,8 +1,8 @@
 {{- define "main" }}
 
-{{- /* 时间正序：最早的一篇是最里面一圈，越往外越新 */ -}}
-{{- /* 平放的一片年轮，往下滑一圈圈浮起来，叠成一座塔：最早的在塔尖，最新的在塔底 */ -}}
-{{- $pages := (where site.RegularPages "Section" "posts").ByDate }}
+{{- /* 时间倒序：最新的一篇是最里面一圈，越往外越早 */ -}}
+{{- /* 平放的一片年轮，往下滑一圈圈浮起来，叠成一座塔：最新的在塔尖，最早的在塔底 */ -}}
+{{- $pages := (where site.RegularPages "Section" "posts").ByDate.Reverse }}
 
 <div class="tr-root" id="trRoot">
 
@@ -356,7 +356,7 @@ body.tr-page .top-link{ display:none !important; }
       var f = Math.max(0, Math.min(N - 1, (y - HEAD) / STEP)); /* 滑到第几圈，可以是小数 */
       var gap = D * .013 * ease;
       layers.forEach(function(L, i){
-        /* 最早的一圈在塔尖；正看着的那圈再往上浮一点 */
+        /* 最新的一圈在塔尖；正看着的那圈再往上浮一点 */
         var near = Math.max(0, 1 - Math.abs(i - f) / 1.2) * ease;
         var z = (N - 1 - i) * gap + near * D * .12;
         L.style.transform = 'translateZ(' + z.toFixed(1) + 'px)';
