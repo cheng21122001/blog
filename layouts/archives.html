@@ -101,6 +101,10 @@ body.tr-page .top-link{ display:none !important; }
 .tr-stack{ position:absolute; inset:0; transform-style:preserve-3d; }
 .tr-layer{ position:absolute; inset:0; transform-style:preserve-3d; will-change:transform; }
 .tr-layer svg{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+/* 只有圈本身点得到：方块的空白和中间的洞都让点击漏到下面那层 */
+.tr-layer, .tr-layer svg, .tr-layer text{ pointer-events:none; }
+.tr-layer path{ pointer-events:auto; cursor:pointer; }
+.tr-layer:hover text{ fill:var(--primary); }
 /* 每一层是一片薄木：底下垫一层深色当侧边 */
 .tr-layer .tr-edge{ transform:translateZ(-5px); }
 .tr-edge path{ fill:var(--tr-edge); }
@@ -301,6 +305,8 @@ body.tr-page .top-link{ display:none !important; }
 
     L.appendChild(edge);
     L.appendChild(face);
+    /* 戳一下哪一圈，就滑到那一篇 */
+    L.addEventListener('click', function(){ jumpTo(i); });
     stack.appendChild(L);
     return L;
   });
